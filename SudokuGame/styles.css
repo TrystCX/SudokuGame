@@ -158,9 +158,18 @@ button,input{font:inherit}
 .tag.good{border-color:rgba(47, 116, 63, .45); color:#0a6e33}
 .tag.playing{border-color:rgba(58,160,255,.55); color:#1c6fd1}
 
-.game{flex:1; display:flex; flex-direction:column; align-items:center; padding:14px 12px 18px; gap:12px}
-.board{
+.game{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
   width:min(92vw,520px);
+  margin:0 auto;
+  padding:14px 0 18px;
+  gap:12px;
+}
+.board{
+  width:100%;
   aspect-ratio:1/1;
   background:var(--bg);
   border:2px solid var(--line);
@@ -234,7 +243,7 @@ button,input{font:inherit}
 .cell:nth-child(n+46):nth-child(-n+54){border-bottom:2px solid rgba(15, 22, 29, .18)}
 
 .controls{
-  width:min(92vw,520px);
+  width:100%;
   display:flex;
   flex-direction:column;
   gap:10px;
