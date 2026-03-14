@@ -168,9 +168,9 @@ button,input{font:inherit}
   display:flex;
   flex-direction:column;
   align-items:stretch;
-  width:min(92vw,520px);
+  width:min(100vw,520px);
   margin:0 auto;
-  padding:14px 0 18px;
+  padding:14px 12px 18px;
   gap:12px;
 }
 .board{
@@ -255,11 +255,13 @@ button,input{font:inherit}
 }
 .pad{
   display:grid;
-  grid-template-columns:repeat(9,1fr);
+  grid-template-columns:repeat(9,minmax(0,1fr));
   gap:8px;
 }
 .pad-btn{
   height:44px;
+  min-width:0;
+  padding:0;
   border-radius:12px;
   border:1px solid var(--line);
   background:var(--panel);
@@ -277,11 +279,12 @@ button,input{font:inherit}
 }
 .actions{
   display:grid;
-  grid-template-columns:repeat(4,1fr);
+  grid-template-columns:repeat(4,minmax(0,1fr));
   gap:8px;
 }
 .action-btn{
   height:44px;
+  min-width:0;
   border-radius:12px;
   border:1px solid var(--line);
   background:var(--panel);
@@ -399,7 +402,7 @@ input:checked + .slider:before{transform:translateX(20px)}
 
 @media (max-width:420px){
   .actions{grid-template-columns:repeat(2,1fr)}
-  .pad{gap:6px}
+  .pad{gap:5px}
   .pad-btn,.action-btn{height:46px}
   .cell{font-size:20px}
 }
