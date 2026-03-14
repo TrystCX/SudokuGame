@@ -829,7 +829,7 @@
       applyMove(idx, activeState.lockedDigit, 0, "fill")
       return
     }
-    if (settings.numberFirst && v) {
+    if (settings.numberFirst && activeState.lockedDigit && v) {
       activeState.lockedDigit = v
       updatePad()
       persistActive()
@@ -859,6 +859,8 @@
     const prevVal = grid[idx]
     const prevNotes = notes[idx]
     const prevErrors = activeState.errors[idx]
+
+    if (kind === "fill" && prevVal !== 0 && nextVal !== 0) return
 
     if (kind === "note") {
       notes[idx] = nextNotesMask
@@ -913,13 +915,12 @@
     if (!activeState || activeState.paused) return
     const idx = activeState.selected
     if (idx < 0) return
-    if (settings.numberFirst && activeState.lockedDigit) {
-      if (activeState.lockedDigit !== n) {
-        activeState.lockedDigit = n
-        updatePad()
-        persistActive()
-        return
-      }
+    if (settings.numberFirst) {
+      if (activeState.lockedDigit === n) activeState.lockedDigit = 0
+      else activeState.lockedDigit = n
+      updatePad()
+      persistActive()
+      return
     }
     if (activeState.givens[idx]) return
     if (activeState.noteMode) {
