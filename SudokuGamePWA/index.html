@@ -11,9 +11,170 @@
     <link rel="apple-touch-icon" href="./icon.svg" />
 
     <link rel="stylesheet" href="../SudokuGame/styles.css" />
+    <script defer src="../SudokuGame/levels.js"></script>
+    <script defer src="../SudokuGame/app.js"></script>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div id="screen-levels" class="screen">
+        <header class="topbar">
+          <div class="topbar-left">
+            <div class="brand">SudokuGame</div>
+          </div>
+          <div class="topbar-center">
+            <div id="levels-status" class="levels-status"></div>
+          </div>
+          <div class="topbar-right">
+            <button id="btn-settings" class="icon-btn" type="button" aria-label="设置">
+              <span class="icon">⚙</span>
+            </button>
+          </div>
+        </header>
+
+        <div class="levels">
+          <div class="difficulty-tabs" id="difficulty-tabs"></div>
+          <div class="levels-scroll" id="levels-scroll">
+            <div class="levels-spacer" id="levels-spacer"></div>
+            <div class="levels-viewport" id="levels-viewport"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="screen-game" class="screen hidden">
+        <header class="topbar">
+          <div class="topbar-left">
+            <button id="btn-back" class="icon-btn" type="button" aria-label="返回">
+              <span class="icon">←</span>
+            </button>
+            <div id="game-difficulty" class="pill"></div>
+          </div>
+          <div class="topbar-center">
+            <div id="game-timer" class="timer">00:00</div>
+          </div>
+          <div class="topbar-right">
+            <button id="btn-pause" class="icon-btn" type="button" aria-label="暂停">
+              <span class="icon">⏸</span>
+            </button>
+            <button id="btn-settings-2" class="icon-btn" type="button" aria-label="设置">
+              <span class="icon">⚙</span>
+            </button>
+          </div>
+        </header>
+
+        <main class="game">
+          <div id="board" class="board" aria-label="数独棋盘"></div>
+
+          <div class="controls">
+            <div id="pad" class="pad" aria-label="数字键盘"></div>
+            <div class="actions">
+              <button id="btn-erase" class="action-btn" type="button">擦除</button>
+              <button id="btn-undo" class="action-btn" type="button">撤回</button>
+              <button id="btn-hint" class="action-btn" type="button">提示</button>
+              <button id="btn-note" class="action-btn" type="button">笔记</button>
+            </div>
+          </div>
+        </main>
+
+        <div id="pause-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+          <div class="overlay-card">
+            <div class="overlay-title">已暂停</div>
+            <button id="btn-resume" class="primary-btn" type="button">继续</button>
+            <button id="btn-restart" class="ghost-btn" type="button">重玩本局</button>
+            <button id="btn-pause-settings" class="ghost-btn" type="button">设置</button>
+            <button id="btn-exit" class="ghost-btn" type="button">退出本局</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-card">
+          <div class="modal-header">
+            <div class="modal-title">设置</div>
+            <button id="btn-settings-close" class="icon-btn" type="button" aria-label="关闭">
+              <span class="icon">✕</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="setting-row">
+              <div class="setting-label">音效</div>
+              <label class="switch">
+                <input id="setting-sound" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">界面亮度</div>
+              <div style="display:flex; align-items:center; gap:10px">
+                <input id="setting-brightness" type="range" min="70" max="110" step="1" />
+                <div id="setting-brightness-value" class="pill">100%</div>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">突出显示区域</div>
+              <label class="switch">
+                <input id="setting-highlight-region" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">突出相同数字</div>
+              <label class="switch">
+                <input id="setting-highlight-same" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">突出相同笔记</div>
+              <label class="switch">
+                <input id="setting-highlight-same-notes" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="setting-row-highlight-same-notes-mode" class="setting-row">
+              <div class="setting-label">突出相同笔记：数字</div>
+              <label class="switch">
+                <input id="setting-highlight-same-notes-digit" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">双击自动填入唯一笔记</div>
+              <label class="switch">
+                <input id="setting-double-click-fill-note" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">高亮唯一数</div>
+              <label class="switch">
+                <input id="setting-highlight-unique" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">选数优先</div>
+              <label class="switch">
+                <input id="setting-number-first" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="setting-row">
+              <button id="btn-export" class="ghost-btn" type="button">导出分享码</button>
+              <button id="btn-import" class="ghost-btn" type="button">导入分享码</button>
+            </div>
+            <div class="setting-row">
+              <button id="btn-reset" class="danger-btn" type="button">清空本地数据</button>
+            </div>
+          </div>
+        </div>
+        <div id="modal-backdrop" class="modal-backdrop"></div>
+      </div>
+
+      <div id="toast" class="toast hidden"></div>
+    </div>
 
     <script>
       if ("serviceWorker" in navigator) {
@@ -22,8 +183,5 @@
         })
       }
     </script>
-
-    <script src="../SudokuGame/levels.js"></script>
-    <script src="../SudokuGame/app.js"></script>
   </body>
 </html>
