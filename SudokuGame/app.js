@@ -1169,8 +1169,6 @@
   }
 
   const exitGame = () => {
-    if (activeState) setActive(activeState.difficulty, activeState.levelIndex, null)
-    activeState = null
     showLevelsScreen()
   }
 
