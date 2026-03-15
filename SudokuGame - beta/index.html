@@ -4,29 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>SudokuGame</title>
-    <link rel="stylesheet" href="./styles.css" />
-    <script defer src="./levels.js"></script>
-    <script defer src="./app.js"></script>
+    <link rel="stylesheet" href="./styles.css?v=20260315" />
+    <script defer src="./levels.js?v=20260315"></script>
+    <script defer src="./app.js?v=20260315"></script>
   </head>
   <body>
     <div id="app">
-      <div id="screen-levels" class="screen">
-        <header class="topbar">
-          <div class="topbar-left">
-            <div class="brand">SudokuGame</div>
+      <div id="screen-home" class="screen">
+        <button id="btn-settings" class="icon-btn home-settings" type="button" aria-label="设置">
+          <span class="icon">⚙</span>
+        </button>
+        <main class="home">
+          <div class="home-title">数独</div>
+          <div class="home-subtitle">选择难度</div>
+          <div class="home-buttons">
+            <button id="btn-diff-easy" class="home-btn" type="button">简单</button>
+            <button id="btn-diff-medium" class="home-btn" type="button">中等</button>
+            <button id="btn-diff-hard" class="home-btn" type="button">困难</button>
+            <button id="btn-diff-diabolical" class="home-btn" type="button">极限</button>
           </div>
-          <div class="topbar-center">
-            <div id="levels-status" class="levels-status"></div>
-          </div>
-          <div class="topbar-right">
-            <button id="btn-settings" class="icon-btn" type="button" aria-label="设置">
-              <span class="icon">⚙</span>
-            </button>
-          </div>
-        </header>
+        </main>
+      </div>
+
+      <div id="screen-levels" class="screen hidden">
+        <button id="btn-levels-back" class="icon-btn levels-back" type="button" aria-label="返回">
+          <span class="icon">←</span>
+        </button>
+        <button id="btn-settings-3" class="icon-btn levels-settings" type="button" aria-label="设置">
+          <span class="icon">⚙</span>
+        </button>
 
         <div class="levels">
-          <div class="difficulty-tabs" id="difficulty-tabs"></div>
+          <div class="levels-head">
+            <div id="levels-diff" class="pill"></div>
+            <div id="levels-status" class="levels-status"></div>
+            <button id="btn-continue" class="ghost-btn levels-continue" type="button">继续</button>
+          </div>
+          <div class="difficulty-tabs hidden" id="difficulty-tabs"></div>
           <div class="levels-scroll" id="levels-scroll">
             <div class="levels-spacer" id="levels-spacer"></div>
             <div class="levels-viewport" id="levels-viewport"></div>
@@ -69,13 +83,29 @@
           </div>
         </main>
 
+        <div id="hint-panel" class="hint-panel hidden">
+          <div class="hint-card">
+            <div class="hint-head">
+              <div id="hint-badge" class="hint-badge"></div>
+              <button id="btn-hint-close" class="icon-btn" type="button" aria-label="关闭">
+                <span class="icon">✕</span>
+              </button>
+            </div>
+            <div id="hint-message" class="hint-message"></div>
+            <div class="hint-actions">
+              <button id="btn-hint-next" class="ghost-btn" type="button">下一步</button>
+              <button id="btn-hint-apply" class="primary-btn" type="button">填入</button>
+            </div>
+          </div>
+        </div>
+
         <div id="pause-overlay" class="overlay hidden" role="dialog" aria-modal="true">
           <div class="overlay-card">
             <div class="overlay-title">已暂停</div>
             <button id="btn-resume" class="primary-btn" type="button">继续</button>
             <button id="btn-restart" class="ghost-btn" type="button">重玩本局</button>
             <button id="btn-pause-settings" class="ghost-btn" type="button">设置</button>
-            <button id="btn-exit" class="ghost-btn" type="button">退出本局</button>
+            <button id="btn-exit" class="ghost-btn" type="button">保存并退出</button>
           </div>
         </div>
       </div>
@@ -156,15 +186,36 @@
             <div class="divider"></div>
 
             <div class="setting-row">
-              <button id="btn-export" class="ghost-btn" type="button">导出分享码</button>
-              <button id="btn-import" class="ghost-btn" type="button">导入分享码</button>
+              <button id="btn-export-game" class="ghost-btn" type="button">导出分享码</button>
+              <button id="btn-import-game" class="ghost-btn" type="button">导入分享码</button>
             </div>
             <div class="setting-row">
-              <button id="btn-reset" class="danger-btn" type="button">清空本地数据</button>
+              <button id="btn-archive-open" class="ghost-btn" type="button">存档设置</button>
             </div>
           </div>
         </div>
         <div id="modal-backdrop" class="modal-backdrop"></div>
+      </div>
+
+      <div id="archive-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-card">
+          <div class="modal-header">
+            <div class="modal-title">存档设置</div>
+            <button id="btn-archive-close" class="icon-btn" type="button" aria-label="关闭">
+              <span class="icon">✕</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="setting-row">
+              <button id="btn-export-archive" class="ghost-btn" type="button">导出存档</button>
+              <button id="btn-import-archive" class="ghost-btn" type="button">导入存档</button>
+            </div>
+            <div class="setting-row">
+              <button id="btn-reset-archive" class="danger-btn" type="button">清空存档</button>
+            </div>
+          </div>
+        </div>
+        <div id="archive-backdrop" class="modal-backdrop"></div>
       </div>
 
       <div id="toast" class="toast hidden"></div>
