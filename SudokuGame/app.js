@@ -380,6 +380,7 @@
   })()
 
   const ui = {
+    screenHome: qs("#screen-home"),
     screenLevels: qs("#screen-levels"),
     screenGame: qs("#screen-game"),
     tabs: qs("#difficulty-tabs"),
@@ -387,9 +388,12 @@
     levelsSpacer: qs("#levels-spacer"),
     levelsViewport: qs("#levels-viewport"),
     levelsStatus: qs("#levels-status"),
+    levelsDiff: qs("#levels-diff"),
+    btnContinue: qs("#btn-continue"),
     board: qs("#board"),
     pad: qs("#pad"),
     btnBack: qs("#btn-back"),
+    btnLevelsBack: qs("#btn-levels-back"),
     btnPause: qs("#btn-pause"),
     pauseOverlay: qs("#pause-overlay"),
     btnResume: qs("#btn-resume"),
@@ -406,7 +410,12 @@
     modalBackdrop: qs("#modal-backdrop"),
     btnSettings: qs("#btn-settings"),
     btnSettings2: qs("#btn-settings-2"),
+    btnSettings3: qs("#btn-settings-3"),
     btnSettingsClose: qs("#btn-settings-close"),
+    btnDiffEasy: qs("#btn-diff-easy"),
+    btnDiffMedium: qs("#btn-diff-medium"),
+    btnDiffHard: qs("#btn-diff-hard"),
+    btnDiffDiabolical: qs("#btn-diff-diabolical"),
     settingSound: qs("#setting-sound"),
     settingBrightness: qs("#setting-brightness"),
     settingBrightnessValue: qs("#setting-brightness-value"),
@@ -418,9 +427,15 @@
     settingDoubleClickFillNote: qs("#setting-double-click-fill-note"),
     settingHighlightUnique: qs("#setting-highlight-unique"),
     settingNumberFirst: qs("#setting-number-first"),
-    btnExport: qs("#btn-export"),
-    btnImport: qs("#btn-import"),
-    btnReset: qs("#btn-reset"),
+    btnExportGame: qs("#btn-export-game"),
+    btnImportGame: qs("#btn-import-game"),
+    btnArchiveOpen: qs("#btn-archive-open"),
+    archiveModal: qs("#archive-modal"),
+    archiveBackdrop: qs("#archive-backdrop"),
+    btnArchiveClose: qs("#btn-archive-close"),
+    btnExportArchive: qs("#btn-export-archive"),
+    btnImportArchive: qs("#btn-import-archive"),
+    btnResetArchive: qs("#btn-reset-archive"),
   }
 
   let settings = loadSettings()
@@ -439,6 +454,10 @@
   let cellEls = []
   let padEls = []
   let levelsStatusTimer = 0
+  const chapterSize = 100
+  let levelsMode = "chapters"
+  let currentChapter = 0
+  let focusLevel = -1
 
   const setLevelsStatus = (text) => {
     if (!ui.levelsStatus) return
@@ -468,29 +487,85 @@
     applyBrightness()
   }
 
+  let scrollGuardInstalled = false
+  const installScrollGuard = () => {
+    if (scrollGuardInstalled) return
+    scrollGuardInstalled = true
+    const handler = (e) => {
+      if (!document.body.classList.contains("modal-open")) return
+      const t = e.target
+      if (t && t.closest && t.closest(".modal-card")) return
+      e.preventDefault()
+    }
+    document.addEventListener("wheel", handler, { passive: false })
+    document.addEventListener("touchmove", handler, { passive: false })
+  }
+
+  const updateScrollLock = () => {
+    const open =
+      (ui.settingsModal && !ui.settingsModal.classList.contains("hidden")) ||
+      (ui.archiveModal && !ui.archiveModal.classList.contains("hidden"))
+    document.body.classList.toggle("modal-open", !!open)
+    document.documentElement.classList.toggle("modal-open", !!open)
+  }
+
   const openSettings = () => {
     applySettingsToUI()
     ui.settingsModal.classList.remove("hidden")
+    updateScrollLock()
   }
 
   const closeSettings = () => {
     ui.settingsModal.classList.add("hidden")
+    updateScrollLock()
+  }
+
+  const openArchive = () => {
+    ui.archiveModal.classList.remove("hidden")
+    updateScrollLock()
+  }
+
+  const closeArchive = () => {
+    ui.archiveModal.classList.add("hidden")
+    updateScrollLock()
   }
 
   const showLevelsScreen = () => {
+    if (activeState) {
+      currentDiff = activeState.difficulty || currentDiff
+      levelsMode = "levels"
+      currentChapter = Math.floor((activeState.levelIndex || 0) / chapterSize)
+      focusLevel = activeState.levelIndex || 0
+      activeState.paused = true
+      persistActive()
+      activeState = null
+    }
+    saveLastActiveKey("")
+    ui.screenGame.classList.add("hidden")
+    ui.screenHome.classList.add("hidden")
+    ui.screenLevels.classList.remove("hidden")
+    stopTimer()
+    updateLevelsHeader()
+    renderLevels()
+    if (levelsMode === "levels") scrollLevelsToIndex((focusLevel % chapterSize) || 0)
+  }
+
+  const showHomeScreen = () => {
     if (activeState) {
       activeState.paused = true
       persistActive()
       activeState = null
     }
+    saveLastActiveKey("")
     ui.screenGame.classList.add("hidden")
-    ui.screenLevels.classList.remove("hidden")
+    ui.screenLevels.classList.add("hidden")
+    ui.screenHome.classList.remove("hidden")
     stopTimer()
-    renderLevels()
   }
 
   const showGameScreen = () => {
     ui.screenLevels.classList.add("hidden")
+    ui.screenHome.classList.add("hidden")
     ui.screenGame.classList.remove("hidden")
     startTimer()
   }
@@ -513,12 +588,54 @@
 
   const isPlaying = (diff, idx) => !!getActive(diff, idx)
 
-  const levelMetaFor = (diff, idx) => {
+  const findLastActiveIndexInDiff = (diff) => {
+    const map = loadActiveMap()
+    let bestIdx = -1
+    let bestAt = -1
+    for (const k of Object.keys(map)) {
+      if (!k.startsWith(diff + ":")) continue
+      const idx = Number(k.slice(diff.length + 1))
+      if (!Number.isFinite(idx)) continue
+      const a = map[k]
+      const t = Number(a?.savedAt || 0)
+      if (t > bestAt) {
+        bestAt = t
+        bestIdx = idx
+      }
+    }
+    return bestIdx
+  }
+
+  const unlockedCountFor = (diff) => {
+    const d = levelData()
+    const count = d?.[diff]?.count || 0
+    const base = Math.min(5, count)
+    const pd = progress?.[diff] || {}
+    let completed = 0
+    for (let i = 0; i < count; i++) if (pd[i]) completed++
+    return clamp(base + completed, 0, count)
+  }
+
+  const levelMetaFor = (diff, idx, unlockedCount) => {
     const done = progress?.[diff]?.[idx]
     if (done) return { kind: "good", text: formatTime(done.bestMs || done.ms || 0) }
     const playing = isPlaying(diff, idx)
     if (playing) return { kind: "playing", text: "进行中" }
+    if (idx >= unlockedCount) return { kind: "lock", text: "锁定" }
     return { kind: "bad", text: "未通关" }
+  }
+
+  const chapterCountFor = (diff) => {
+    const d = levelData()
+    const count = d?.[diff]?.count || 0
+    return Math.ceil(count / chapterSize) || 0
+  }
+
+  const scrollLevelsToIndex = (idx) => {
+    const cols = levelCols || computeLevelCols()
+    const row = Math.floor(idx / cols)
+    ui.levelsScroll.scrollTop = row * levelRowHeight
+    updateLevelViewport()
   }
 
   const computeLevelCols = () => {
@@ -534,7 +651,12 @@
       ui.levelsViewport.innerHTML = `<div class="level-row"><div class="level-title">缺少 levels.js</div></div>`
       return
     }
-    const count = d[currentDiff].count
+    levelTileHeight = levelsMode === "chapters" ? 86 : 66
+    levelRowHeight = levelTileHeight + levelTileGap
+    const totalCount = d[currentDiff].count
+    const chapterStart = currentChapter * chapterSize
+    const chapterEnd = Math.min(totalCount, chapterStart + chapterSize)
+    const count = levelsMode === "chapters" ? chapterCountFor(currentDiff) : chapterEnd - chapterStart
     levelCols = computeLevelCols()
     const rows = Math.ceil(count / levelCols)
     ui.levelsSpacer.style.height = rows * levelRowHeight + "px"
@@ -546,7 +668,24 @@
   const updateLevelViewport = () => {
     const d = levelData()
     if (!d) return
-    const count = d[currentDiff].count
+    const unlockedCount = unlockedCountFor(currentDiff)
+    const totalCount = d[currentDiff].count
+    const chapterStart = currentChapter * chapterSize
+    const chapterEnd = Math.min(totalCount, chapterStart + chapterSize)
+    const count = levelsMode === "chapters" ? chapterCountFor(currentDiff) : chapterEnd - chapterStart
+    let chapterPlaying = null
+    if (levelsMode === "chapters") {
+      const cc = count
+      chapterPlaying = new Uint8Array(cc)
+      const map = loadActiveMap()
+      for (const k of Object.keys(map)) {
+        if (!k.startsWith(currentDiff + ":")) continue
+        const idx = Number(k.slice(currentDiff.length + 1))
+        if (!Number.isFinite(idx) || idx < 0) continue
+        const ch = Math.floor(idx / chapterSize)
+        if (ch >= 0 && ch < cc) chapterPlaying[ch] = 1
+      }
+    }
     const scrollTop = ui.levelsScroll.scrollTop
     const cols = levelCols || computeLevelCols()
     const rows = Math.ceil(count / cols)
@@ -566,20 +705,62 @@
         tile.dataset.index = String(i)
         const title = document.createElement("div")
         title.className = "level-title"
-        title.textContent = `第 ${i + 1} 关`
         const meta = document.createElement("div")
         meta.className = "level-meta"
-        const m = levelMetaFor(currentDiff, i)
-        const tag = document.createElement("span")
-        tag.className = "tag " + m.kind
-        tag.textContent = m.text
-        meta.appendChild(tag)
+        if (levelsMode === "chapters") {
+          const cs = i * chapterSize
+          const ce = Math.min(totalCount, cs + chapterSize)
+          title.textContent = `第 ${i + 1} 章`
+          const tagA = document.createElement("span")
+          tagA.className = "tag range"
+          tagA.textContent = `${cs + 1}-${ce}关`
+          meta.appendChild(tagA)
+          const hasPlaying = chapterPlaying && chapterPlaying[i] === 1
+          const unlockedIn = clamp(unlockedCount - cs, 0, ce - cs)
+          const tagB = document.createElement("span")
+          const locked = cs >= unlockedCount && !hasPlaying
+          tagB.className = "tag " + (locked ? "lock" : "good")
+          tagB.textContent = locked ? "锁定" : `已解锁 ${unlockedIn}/${ce - cs}`
+          meta.appendChild(tagB)
+          tile.classList.toggle("locked", locked)
+          tile.disabled = locked
+          if (!locked) {
+            tile.addEventListener("click", () => {
+              levelsMode = "levels"
+              currentChapter = i
+              focusLevel = -1
+              ui.levelsScroll.scrollTop = 0
+              renderLevels()
+              updateLevelsHeader()
+            })
+          }
+        } else {
+          const globalIdx = chapterStart + i
+          title.textContent = `第 ${globalIdx + 1} 关`
+          const m = levelMetaFor(currentDiff, globalIdx, unlockedCount)
+          const tag = document.createElement("span")
+          tag.className = "tag " + m.kind
+          tag.textContent = m.text
+          meta.appendChild(tag)
+          const locked = m.kind === "lock" && !isPlaying(currentDiff, globalIdx)
+          tile.classList.toggle("locked", locked)
+          tile.disabled = locked
+          tile.classList.toggle("focus", focusLevel === globalIdx)
+          if (!locked) tile.addEventListener("click", () => startOrResumeGame(currentDiff, globalIdx))
+        }
         tile.appendChild(title)
         tile.appendChild(meta)
-        tile.addEventListener("click", () => startOrResumeGame(currentDiff, i))
         ui.levelsViewport.appendChild(tile)
       }
     }
+  }
+
+  const updateLevelsHeader = () => {
+    if (!ui.levelsDiff) return
+    if (levelsMode === "chapters") ui.levelsDiff.textContent = DIFF_LABEL[currentDiff] || ""
+    else ui.levelsDiff.textContent = (DIFF_LABEL[currentDiff] || "") + ` · 第 ${currentChapter + 1} 章`
+    const hasContinue = findLastActiveIndexInDiff(currentDiff) >= 0
+    ui.btnContinue.classList.toggle("hidden", !(levelsMode === "chapters" && hasContinue))
   }
 
   const buildBoard = () => {
@@ -668,8 +849,7 @@
       btn.classList.toggle("locked", settings.numberFirst && activeState.lockedDigit === n)
       let off = false
       if (useNoteMask) {
-        if (noteMask === 0) off = true
-        else off = ((noteMask >> (n - 1)) & 1) === 0
+        if (noteMask !== 0) off = ((noteMask >> (n - 1)) & 1) === 1
       } else if (hideOthers) {
         off = n !== hideOthers
       }
@@ -809,7 +989,8 @@
     ui.btnUndo.disabled = activeState.undo.length === 0
     ui.btnNote.classList.toggle("primary", activeState.noteMode)
     ui.pad.classList.toggle("note", activeState.noteMode)
-    if (activeState.noteMode) ui.btnHint.textContent = "一键笔记"
+    const allowAutoNotes = activeState.difficulty === "hard" || activeState.difficulty === "diabolical"
+    if (activeState.noteMode && allowAutoNotes) ui.btnHint.textContent = "一键笔记"
     else ui.btnHint.textContent = "提示"
     if (!activeState.noteMode) activeState.bulkEraseNotes = false
     ui.btnErase.textContent = activeState.noteMode && activeState.bulkEraseNotes ? "一键擦除笔记" : "擦除"
@@ -817,6 +998,12 @@
 
   const onCellClick = (idx) => {
     if (!activeState || activeState.paused) return
+    if (activeState.selected === idx) {
+      activeState.selected = -1
+      refreshHighlights()
+      updatePad()
+      return
+    }
     activeState.selected = idx
     const v = activeState.grid[idx]
     if (settings.numberFirst && activeState.lockedDigit && !v && !activeState.givens[idx]) {
@@ -866,7 +1053,20 @@
       notes[idx] = nextNotesMask
     } else {
       grid[idx] = nextVal
-      notes[idx] = 0
+      if (nextVal === 0 && prevVal !== 0) {
+        let restore = 0
+        for (let k = activeState.undo.length - 1; k >= 0; k--) {
+          const u = activeState.undo[k]
+          if (u.idx !== idx) continue
+          if (u.pv === 0 && u.nv !== 0) {
+            restore = u.pn || 0
+            break
+          }
+        }
+        notes[idx] = restore
+      } else {
+        notes[idx] = 0
+      }
     }
 
     activeState.errors[idx] = 0
@@ -875,6 +1075,28 @@
       if (grid[idx] !== sol) activeState.errors[idx] = 1
     }
     activeState.conflicts = recomputeAllConflicts(grid)
+
+    let cascadeCount = 0
+    if (kind === "fill" && nextVal) {
+      const bit = 1 << (nextVal - 1)
+      for (const p of peersOf[idx]) {
+        if (grid[p] !== 0) continue
+        const pn = notes[p]
+        const nn = pn & ~bit
+        if (nn === pn) continue
+        notes[p] = nn
+        activeState.undo.push({
+          idx: p,
+          pv: grid[p],
+          nv: grid[p],
+          pn,
+          nn,
+          pe: activeState.errors[p],
+          ne: activeState.errors[p],
+        })
+        cascadeCount++
+      }
+    }
 
     activeState.undo.push({
       idx,
@@ -885,15 +1107,19 @@
       pe: prevErrors,
       ne: activeState.errors[idx],
     })
-    if (activeState.undo.length > 200) activeState.undo.shift()
 
-    if (kind === "fill" && nextVal && activeState.errors[idx] === 0) {
-      const bit = 1 << (nextVal - 1)
-      for (const p of peersOf[idx]) {
-        if (grid[p] !== 0) continue
-        notes[p] = notes[p] & ~bit
-      }
+    if (kind === "fill" && nextVal) {
+      activeState.undo.push({
+        idx: 99,
+        pv: cascadeCount + 1,
+        nv: 0,
+        pn: 0,
+        nn: 0,
+        pe: 0,
+        ne: 0,
+      })
     }
+    if (activeState.undo.length > 200) activeState.undo.splice(0, activeState.undo.length - 200)
 
     renderBoard()
     persistActive()
@@ -935,7 +1161,6 @@
   const eraseSelected = () => {
     if (!activeState || activeState.paused) return
     const idx = activeState.selected
-    if (idx < 0) return
     if (activeState.noteMode && activeState.bulkEraseNotes) {
       let changed = false
       for (let i = 0; i < 81; i++) {
@@ -963,6 +1188,7 @@
       }
       return
     }
+    if (idx < 0) return
     if (activeState.givens[idx]) return
     if (activeState.noteMode) {
       if (!activeState.notes[idx]) return
@@ -978,9 +1204,21 @@
     const u = activeState.undo.pop()
     if (!u) return
     const { grid, notes } = activeState
-    grid[u.idx] = u.pv
-    notes[u.idx] = u.pn
-    activeState.errors[u.idx] = u.pe
+    const applyUndo = (rec) => {
+      grid[rec.idx] = rec.pv
+      notes[rec.idx] = rec.pn
+      activeState.errors[rec.idx] = rec.pe
+    }
+    if (u.idx === 99) {
+      const n = u.pv || 0
+      for (let i = 0; i < n; i++) {
+        const rec = activeState.undo.pop()
+        if (!rec) break
+        applyUndo(rec)
+      }
+    } else {
+      applyUndo(u)
+    }
     activeState.conflicts = recomputeAllConflicts(grid)
     renderBoard()
     persistActive()
@@ -996,6 +1234,7 @@
       activeState.notes[i] = computeCandidateMask(activeState.grid, i)
     }
     activeState.bulkEraseNotes = true
+    updateActions()
     renderBoard()
     persistActive()
     toast("已覆盖更新所有笔记")
@@ -1126,7 +1365,11 @@
 
   const startOrResumeGame = (diff, idx) => {
     const a = getActive(diff, idx)
-    if (a) restoreActiveState(a)
+    if (a) {
+      const next = { ...a, paused: true, savedAt: Date.now() }
+      setActive(diff, idx, next)
+      restoreActiveState(next)
+    }
     else startNewGame(diff, idx)
     showGameScreen()
   }
@@ -1195,6 +1438,17 @@
       if (!ui.screenLevels.classList.contains("hidden")) renderLevels()
     })
     ui.btnBack.addEventListener("click", showLevelsScreen)
+    ui.btnLevelsBack.addEventListener("click", () => {
+      if (levelsMode === "levels") {
+        levelsMode = "chapters"
+        focusLevel = -1
+        ui.levelsScroll.scrollTop = 0
+        updateLevelsHeader()
+        renderLevels()
+        return
+      }
+      showHomeScreen()
+    })
     ui.btnPause.addEventListener("click", () => setPaused(true))
     ui.btnResume.addEventListener("click", () => setPaused(false))
     ui.btnRestart.addEventListener("click", () => restartCurrent())
@@ -1204,7 +1458,8 @@
     ui.btnErase.addEventListener("click", eraseSelected)
     ui.btnHint.addEventListener("click", () => {
       if (!activeState) return
-      if (activeState.noteMode) autoNotes()
+      const allowAutoNotes = activeState.difficulty === "hard" || activeState.difficulty === "diabolical"
+      if (activeState.noteMode && allowAutoNotes) autoNotes()
       else toast("提示系统后续加入")
     })
     ui.btnNote.addEventListener("click", () => {
@@ -1219,6 +1474,7 @@
     const open = () => openSettings()
     ui.btnSettings.addEventListener("click", open)
     ui.btnSettings2.addEventListener("click", open)
+    ui.btnSettings3.addEventListener("click", open)
     ui.btnSettingsClose.addEventListener("click", closeSettings)
     ui.modalBackdrop.addEventListener("click", closeSettings)
 
@@ -1257,7 +1513,7 @@
     bindSetting(ui.settingHighlightUnique, "highlightUnique")
     bindSetting(ui.settingNumberFirst, "numberFirst")
 
-    ui.btnReset.addEventListener("click", () => {
+    ui.btnResetArchive.addEventListener("click", () => {
       const ok = confirm("确定要清空本地数据吗？这会删除通关记录和进行中对局。")
       if (!ok) return
       clearAll()
@@ -1266,11 +1522,12 @@
       activeState = null
       applyBrightness()
       toast("已清空")
+      closeArchive()
       closeSettings()
       showLevelsScreen()
     })
 
-    ui.btnExport.addEventListener("click", async () => {
+    ui.btnExportArchive.addEventListener("click", async () => {
       const payload = {
         v: 2,
         activeMap: loadActiveMap(),
@@ -1281,13 +1538,13 @@
       const code = encodeUtf8B64(payload)
       try {
         await navigator.clipboard.writeText(code)
-        toast("分享码已复制")
+        toast("存档已复制")
       } catch {
-        prompt("复制分享码：", code)
+        prompt("复制存档：", code)
       }
     })
-    ui.btnImport.addEventListener("click", () => {
-      const code = prompt("粘贴分享码：")
+    ui.btnImportArchive.addEventListener("click", () => {
+      const code = prompt("粘贴存档：")
       if (!code) return
       try {
         const obj = decodeUtf8B64(code.trim())
@@ -1325,8 +1582,139 @@
         toast("已导入，但没有可恢复的对局")
         closeSettings()
       } catch {
+        toast("存档解析失败")
+      }
+    })
+
+    const serializeNotes = (notesArr) => Array.from(notesArr).map(base36Pad2).join("")
+
+    ui.btnExportGame.addEventListener("click", async () => {
+      if (!activeState) {
+        toast("请先进入一局再导出")
+        return
+      }
+      const code = [
+        "G1",
+        Math.max(0, Math.floor(activeState.elapsedMs || 0)).toString(36),
+        activeState.noteMode ? "1" : "0",
+        (activeState.lockedDigit || 0).toString(36),
+        digitsToString(activeState.grid),
+        serializeNotes(activeState.notes),
+      ].join("|")
+      try {
+        await navigator.clipboard.writeText(code)
+        toast("分享码已复制")
+      } catch {
+        prompt("复制分享码：", code)
+      }
+    })
+
+    ui.btnImportGame.addEventListener("click", () => {
+      if (!activeState) {
+        toast("请先进入一局再导入")
+        return
+      }
+      const code = prompt("粘贴分享码：")
+      if (!code) return
+      try {
+        const raw = code.trim()
+        let gridStr = ""
+        let notesStr = ""
+        let elapsedMs = 0
+        let noteMode = false
+        let lockedDigit = 0
+
+        if (raw.startsWith("G1|")) {
+          const parts = raw.split("|")
+          if (parts.length !== 6) {
+            toast("分享码格式不支持")
+            return
+          }
+          elapsedMs = parseInt(parts[1] || "0", 36) || 0
+          noteMode = parts[2] === "1"
+          lockedDigit = parseInt(parts[3] || "0", 36) || 0
+          gridStr = parts[4] || ""
+          notesStr = parts[5] || ""
+        } else {
+          const obj = decodeUtf8B64(raw)
+          if (!obj || obj.type !== "game" || !obj.game) {
+            toast("分享码格式不支持")
+            return
+          }
+          const g = obj.game
+          gridStr = String(g.grid || "")
+          notesStr = String(g.notes || "")
+          elapsedMs = Math.max(0, Number(g.elapsedMs || 0))
+          noteMode = !!g.noteMode
+          lockedDigit = Number(g.lockedDigit || 0)
+        }
+
+        if (gridStr.length !== 81 || notesStr.length !== 162) {
+          toast("分享码内容不完整")
+          return
+        }
+        if (!activeState.puzzle || !activeState.solution) {
+          toast("当前棋局不可导入")
+          return
+        }
+        const diff = activeState.difficulty
+        const idx = activeState.levelIndex
+        const a = {
+          difficulty: diff,
+          levelIndex: idx,
+          puzzle: String(activeState.puzzle),
+          solution: String(activeState.solution),
+          grid: gridStr,
+          givens: digitsToString(activeState.givens),
+          notes: notesStr,
+          undo: "",
+          noteMode,
+          lockedDigit,
+          elapsedMs,
+          paused: false,
+          savedAt: Date.now(),
+        }
+        setActive(diff, idx, a)
+        saveLastActiveKey(gameKey(diff, idx))
+        restoreActiveState(a)
+        showGameScreen()
+        closeSettings()
+        toast("已导入棋局")
+      } catch {
         toast("分享码解析失败")
       }
+    })
+
+    ui.btnArchiveOpen.addEventListener("click", openArchive)
+    ui.btnArchiveClose.addEventListener("click", closeArchive)
+    ui.archiveBackdrop.addEventListener("click", closeArchive)
+
+    const openDiff = (d) => {
+      currentDiff = d
+      levelsMode = "chapters"
+      currentChapter = 0
+      focusLevel = -1
+      updateLevelsHeader()
+      ui.screenHome.classList.add("hidden")
+      ui.screenLevels.classList.remove("hidden")
+      ui.levelsScroll.scrollTop = 0
+      renderLevels()
+    }
+    ui.btnDiffEasy.addEventListener("click", () => openDiff("easy"))
+    ui.btnDiffMedium.addEventListener("click", () => openDiff("medium"))
+    ui.btnDiffHard.addEventListener("click", () => openDiff("hard"))
+    ui.btnDiffDiabolical.addEventListener("click", () => openDiff("diabolical"))
+
+    ui.btnContinue.addEventListener("click", () => {
+      const idx = findLastActiveIndexInDiff(currentDiff)
+      if (idx < 0) return
+      levelsMode = "levels"
+      currentChapter = Math.floor(idx / chapterSize)
+      focusLevel = idx
+      ui.levelsScroll.scrollTop = 0
+      updateLevelsHeader()
+      renderLevels()
+      scrollLevelsToIndex(idx % chapterSize)
     })
 
     document.addEventListener("keydown", (e) => {
@@ -1361,10 +1749,10 @@
   }
 
   const init = () => {
-    renderTabs()
     buildBoard()
     buildPad()
     wireUI()
+    installScrollGuard()
     applySettingsToUI()
 
     const k = loadLastActiveKey()
@@ -1374,14 +1762,15 @@
       const a = getActive(diff, idx)
       if (a && a.puzzle && a.solution) {
         currentDiff = a.difficulty || "easy"
-        renderTabs()
-        restoreActiveState(a)
+        const next = { ...a, paused: true, savedAt: Date.now() }
+        setActive(next.difficulty, next.levelIndex, next)
+        restoreActiveState(next)
         showGameScreen()
         toast("已恢复未完成对局")
         return
       }
     }
-    showLevelsScreen()
+    showHomeScreen()
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init)
