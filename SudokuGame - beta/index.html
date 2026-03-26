@@ -204,6 +204,10 @@
                 <div class="setting-nav-label">分享局面</div>
                 <div class="setting-nav-chev">&gt;</div>
               </button>
+              <button id="btn-hotkeys-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">键盘快捷键</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
               <button id="btn-dev-open" class="setting-nav hidden" type="button">
                 <div class="setting-nav-label">开发者</div>
                 <div class="setting-nav-chev">&gt;</div>
@@ -272,6 +276,43 @@
                   <button id="btn-palette-orange" class="ghost-btn setting-chip" type="button">橙色</button>
                   <button id="btn-palette-white" class="ghost-btn setting-chip" type="button">白色</button>
                   <button id="btn-palette-black" class="ghost-btn setting-chip" type="button">黑色</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="settings-page-hotkeys" class="settings-page hidden">
+              <div class="hotkeys-card">
+                <div class="hotkeys-title">导航</div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys">
+                    <span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span>
+                    <span class="keycap">↑</span><span class="keycap">↓</span><span class="keycap">←</span><span class="keycap">→</span>
+                  </div>
+                  <div class="hotkey-desc">提示面板/推演抽屉打开时：切换上一步/下一步</div>
+                </div>
+              </div>
+
+              <div class="hotkeys-card">
+                <div class="hotkeys-title">操作</div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">F</span></div>
+                  <div class="hotkey-desc">提示：打开提示；提示面板打开时继续“下一步/填入”</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">E</span></div>
+                  <div class="hotkey-desc">确认/取消：填入唯一笔记；或取消当前格选中/恢复上次选中；提示面板第 2 步执行“填入”</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">Z</span></div>
+                  <div class="hotkey-desc">撤回</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">X</span></div>
+                  <div class="hotkey-desc">擦除</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">R</span></div>
+                  <div class="hotkey-desc">笔记模式</div>
                 </div>
               </div>
             </div>
@@ -415,4 +456,3 @@
     </div>
   </body>
 </html>
-

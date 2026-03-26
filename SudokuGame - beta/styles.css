@@ -1044,6 +1044,34 @@ button{color:inherit}
 .modal-body{display:flex; flex-direction:column; gap:12px; padding-top:6px}
 .divider{height:1px; background:var(--line2); margin:6px 0}
 .settings-page{display:flex; flex-direction:column; gap:12px}
+.hotkeys-card{
+  border-radius:14px;
+  border:1px solid var(--line2);
+  background:var(--panel);
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.hotkeys-title{font-weight:850; color:var(--text); font-size:calc(14px * var(--font-scale))}
+.hotkey-row{display:flex; align-items:flex-start; justify-content:space-between; gap:12px}
+.hotkey-keys{display:flex; gap:6px; flex-wrap:wrap; flex:0 0 auto}
+.hotkey-desc{flex:1; min-width:0; color:var(--muted); font-weight:650; line-height:1.35; font-size:calc(13px * var(--font-scale))}
+.keycap{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height:28px;
+  min-width:28px;
+  padding:0 8px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background:var(--panel2);
+  color:var(--text);
+  font-weight:850;
+  font-variant-numeric:tabular-nums;
+  font-size:calc(12px * var(--font-scale));
+}
 .setting-seg{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
 .setting-chip{height:36px; padding:0 12px; border-radius:999px; font-size:calc(12px * var(--font-scale))}
 .setting-chip.active{border-color:var(--primary-border); background:var(--primary-soft)}

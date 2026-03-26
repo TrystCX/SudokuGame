@@ -420,7 +420,7 @@
     btnTraceEnd: qs("#btn-trace-end"),
     btnBack: qs("#btn-back"),
     btnLevelsBack: qs("#btn-levels-back"),
-    btnHome: qs("#btn-home"),
+      btnHome: qs("#btn-home"),
     btnPause: qs("#btn-pause"),
     pauseOverlay: qs("#pause-overlay"),
     btnResume: qs("#btn-resume"),
@@ -447,11 +447,13 @@
     settingsPageMain: qs("#settings-page-main"),
     settingsPageHighlight: qs("#settings-page-highlight"),
     settingsPageTheme: qs("#settings-page-theme"),
+    settingsPageHotkeys: qs("#settings-page-hotkeys"),
     settingsPageShare: qs("#settings-page-share"),
     settingsPageDev: qs("#settings-page-dev"),
     btnHighlightOpen: qs("#btn-highlight-open"),
     btnThemeOpen: qs("#btn-theme-open"),
     btnShareOpen: qs("#btn-share-open"),
+    btnHotkeysOpen: qs("#btn-hotkeys-open"),
     btnDevOpen: qs("#btn-dev-open"),
     btnDiffEasy: qs("#btn-diff-easy"),
     btnDiffMedium: qs("#btn-diff-medium"),
@@ -651,10 +653,11 @@
 
   let settingsPage = "main"
   const setSettingsPage = (p) => {
-    settingsPage = ["main", "highlight", "theme", "share", "dev"].includes(p) ? p : "main"
+    settingsPage = ["main", "highlight", "theme", "hotkeys", "share", "dev"].includes(p) ? p : "main"
     if (ui.settingsPageMain) ui.settingsPageMain.classList.toggle("hidden", settingsPage !== "main")
     if (ui.settingsPageHighlight) ui.settingsPageHighlight.classList.toggle("hidden", settingsPage !== "highlight")
     if (ui.settingsPageTheme) ui.settingsPageTheme.classList.toggle("hidden", settingsPage !== "theme")
+    if (ui.settingsPageHotkeys) ui.settingsPageHotkeys.classList.toggle("hidden", settingsPage !== "hotkeys")
     if (ui.settingsPageShare) ui.settingsPageShare.classList.toggle("hidden", settingsPage !== "share")
     if (ui.settingsPageDev) ui.settingsPageDev.classList.toggle("hidden", settingsPage !== "dev")
     if (ui.btnSettingsBack) ui.btnSettingsBack.classList.toggle("hidden", settingsPage === "main")
@@ -664,6 +667,8 @@
           ? "主题"
           : settingsPage === "highlight"
             ? "高亮突出设置"
+            : settingsPage === "hotkeys"
+              ? "键盘快捷键"
             : settingsPage === "share"
               ? "分享局面"
               : settingsPage === "dev"
@@ -9025,6 +9030,7 @@
     if (ui.btnSettingsBack) ui.btnSettingsBack.addEventListener("click", () => setSettingsPage("main"))
     if (ui.btnHighlightOpen) ui.btnHighlightOpen.addEventListener("click", () => setSettingsPage("highlight"))
     if (ui.btnThemeOpen) ui.btnThemeOpen.addEventListener("click", () => setSettingsPage("theme"))
+    if (ui.btnHotkeysOpen) ui.btnHotkeysOpen.addEventListener("click", () => setSettingsPage("hotkeys"))
     if (ui.btnShareOpen) ui.btnShareOpen.addEventListener("click", () => setSettingsPage("share"))
     if (ui.btnDevOpen) ui.btnDevOpen.addEventListener("click", () => setSettingsPage("dev"))
 
@@ -9512,7 +9518,7 @@
       scrollLevelsToIndex(idx % chapterSize)
     })
 
-    let lastEAt = 0
+    let lastSelectedIdx = -1
     document.addEventListener("keydown", (e) => {
       if (e.defaultPrevented) return
       if (!activeState) return
@@ -9551,6 +9557,17 @@
         return
       }
 
+      if (hintOpen && (e.code === "KeyE" || e.key === "e" || e.key === "E")) {
+        e.preventDefault()
+        if (hintState.step !== 2) {
+          hintState.step = 2
+          renderHint()
+          return
+        }
+        if (ui.btnHintApply && !ui.btnHintApply.disabled) ui.btnHintApply.click()
+        return
+      }
+
       if (e.code === "KeyR") {
         e.preventDefault()
         if (ui.btnNote) ui.btnNote.click()
@@ -9569,21 +9586,39 @@
       if (e.code === "KeyE" || e.key === "e" || e.key === "E") {
         if (activeState.lockedDigit) {
           e.preventDefault()
+          e.stopPropagation()
           activeState.lockedDigit = 0
           persistActive()
           refreshHighlights()
           updatePad()
-          lastEAt = 0
           return
         }
-        const now = Date.now()
-        if (now - lastEAt < 260) {
+        const idx = activeState.selected ?? -1
+        if (idx >= 0) {
+          if (settings.doubleClickFillSingleNote && !activeState.givens[idx] && activeState.grid[idx] === 0) {
+            const m = activeState.notes[idx] || 0
+            if (bitCount(m) === 1) {
+              e.preventDefault()
+              e.stopPropagation()
+              onCellDoubleClick(idx)
+              return
+            }
+          }
           e.preventDefault()
-          lastEAt = 0
-          if (activeState.selected != null && activeState.selected >= 0) onCellDoubleClick(activeState.selected)
+          e.stopPropagation()
+          lastSelectedIdx = activeState.selected
+          activeState.selected = -1
+          refreshHighlights()
+          updatePad()
+          return
+        } else if (lastSelectedIdx >= 0) {
+          e.preventDefault()
+          e.stopPropagation()
+          activeState.selected = lastSelectedIdx
+          refreshHighlights()
+          updatePad()
           return
         }
-        lastEAt = now
       }
       if (
         e.code === "KeyW" ||
@@ -9597,14 +9632,27 @@
       ) {
         e.preventDefault()
         let idx = activeState.selected ?? -1
-        if (idx < 0) idx = 0
+        let isResuming = false
+        if (idx < 0) {
+          if (lastSelectedIdx >= 0) {
+            idx = lastSelectedIdx
+            isResuming = true
+          } else {
+            idx = 0
+          }
+        }
         let r = (idx / 9) | 0
         let c = idx % 9
-        if (e.code === "KeyW" || e.key === "ArrowUp") r = Math.max(0, r - 1)
-        else if (e.code === "KeyS" || e.key === "ArrowDown") r = Math.min(8, r + 1)
-        else if (e.code === "KeyA" || e.key === "ArrowLeft") c = Math.max(0, c - 1)
-        else if (e.code === "KeyD" || e.key === "ArrowRight") c = Math.min(8, c + 1)
+        
+        if (!isResuming) {
+          if (e.code === "KeyW" || e.key === "ArrowUp") r = Math.max(0, r - 1)
+          else if (e.code === "KeyS" || e.key === "ArrowDown") r = Math.min(8, r + 1)
+          else if (e.code === "KeyA" || e.key === "ArrowLeft") c = Math.max(0, c - 1)
+          else if (e.code === "KeyD" || e.key === "ArrowRight") c = Math.min(8, c + 1)
+        }
+        
         activeState.selected = r * 9 + c
+        lastSelectedIdx = activeState.selected
         refreshHighlights()
         updatePad()
         return
