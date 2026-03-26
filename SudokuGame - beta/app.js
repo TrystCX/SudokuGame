@@ -420,6 +420,7 @@
     btnTraceEnd: qs("#btn-trace-end"),
     btnBack: qs("#btn-back"),
     btnLevelsBack: qs("#btn-levels-back"),
+    btnHome: qs("#btn-home"),
     btnPause: qs("#btn-pause"),
     pauseOverlay: qs("#pause-overlay"),
     btnResume: qs("#btn-resume"),
@@ -444,8 +445,14 @@
     settingsTitle: qs("#settings-title"),
     btnSettingsClose: qs("#btn-settings-close"),
     settingsPageMain: qs("#settings-page-main"),
+    settingsPageHighlight: qs("#settings-page-highlight"),
     settingsPageTheme: qs("#settings-page-theme"),
+    settingsPageShare: qs("#settings-page-share"),
+    settingsPageDev: qs("#settings-page-dev"),
+    btnHighlightOpen: qs("#btn-highlight-open"),
     btnThemeOpen: qs("#btn-theme-open"),
+    btnShareOpen: qs("#btn-share-open"),
+    btnDevOpen: qs("#btn-dev-open"),
     btnDiffEasy: qs("#btn-diff-easy"),
     btnDiffMedium: qs("#btn-diff-medium"),
     btnDiffHard: qs("#btn-diff-hard"),
@@ -468,6 +475,8 @@
     btnPaletteGreen: qs("#btn-palette-green"),
     btnPaletteBlue: qs("#btn-palette-blue"),
     btnPaletteOrange: qs("#btn-palette-orange"),
+    btnPaletteWhite: qs("#btn-palette-white"),
+    btnPaletteBlack: qs("#btn-palette-black"),
     settingRowDevmode: qs("#setting-row-devmode"),
     settingDevmode: qs("#setting-devmode"),
     settingRowDevtools: qs("#setting-row-devtools"),
@@ -596,6 +605,7 @@
     ui.settingNumberFirst.checked = !!settings.numberFirst
     if (ui.settingShowForcing) ui.settingShowForcing.checked = settings.showForcing !== false
     ui.settingRowHighlightSameNotesMode.classList.toggle("hidden", !settings.highlightSameNotes)
+    if (ui.btnDevOpen) ui.btnDevOpen.classList.toggle("hidden", !settings.devUnlocked)
     if (ui.settingRowDevmode) ui.settingRowDevmode.classList.toggle("hidden", !settings.devUnlocked)
     if (ui.settingDevmode) ui.settingDevmode.checked = !!settings.devMode
     if (ui.settingRowDevtools) ui.settingRowDevtools.classList.toggle("hidden", !(settings.devUnlocked && settings.devMode))
@@ -605,6 +615,8 @@
     if (ui.btnPaletteGreen) ui.btnPaletteGreen.classList.toggle("active", !settings.palette || settings.palette === "green")
     if (ui.btnPaletteBlue) ui.btnPaletteBlue.classList.toggle("active", settings.palette === "blue")
     if (ui.btnPaletteOrange) ui.btnPaletteOrange.classList.toggle("active", settings.palette === "orange")
+    if (ui.btnPaletteWhite) ui.btnPaletteWhite.classList.toggle("active", settings.palette === "white")
+    if (ui.btnPaletteBlack) ui.btnPaletteBlack.classList.toggle("active", settings.palette === "black")
     if (ui.settingCustomTheme) ui.settingCustomTheme.checked = !!settings.customTheme.enabled
     applyBrightness()
     applyPalette()
@@ -639,11 +651,25 @@
 
   let settingsPage = "main"
   const setSettingsPage = (p) => {
-    settingsPage = p === "theme" ? "theme" : "main"
+    settingsPage = ["main", "highlight", "theme", "share", "dev"].includes(p) ? p : "main"
     if (ui.settingsPageMain) ui.settingsPageMain.classList.toggle("hidden", settingsPage !== "main")
+    if (ui.settingsPageHighlight) ui.settingsPageHighlight.classList.toggle("hidden", settingsPage !== "highlight")
     if (ui.settingsPageTheme) ui.settingsPageTheme.classList.toggle("hidden", settingsPage !== "theme")
-    if (ui.btnSettingsBack) ui.btnSettingsBack.classList.toggle("hidden", settingsPage !== "theme")
-    if (ui.settingsTitle) ui.settingsTitle.textContent = settingsPage === "theme" ? "主题" : "设置"
+    if (ui.settingsPageShare) ui.settingsPageShare.classList.toggle("hidden", settingsPage !== "share")
+    if (ui.settingsPageDev) ui.settingsPageDev.classList.toggle("hidden", settingsPage !== "dev")
+    if (ui.btnSettingsBack) ui.btnSettingsBack.classList.toggle("hidden", settingsPage === "main")
+    if (ui.settingsTitle) {
+      ui.settingsTitle.textContent =
+        settingsPage === "theme"
+          ? "主题"
+          : settingsPage === "highlight"
+            ? "高亮突出设置"
+            : settingsPage === "share"
+              ? "分享局面"
+              : settingsPage === "dev"
+                ? "开发者"
+                : "设置"
+    }
   }
 
   const openSettings = () => {
@@ -1034,16 +1060,17 @@
       const pe = baseErrors[i] || 0
       const ne = nextErrors[i] || 0
       if (pv === nv && pn === nn && pe === ne) continue
-      activeState.undo.push({ idx: i, pv, nv, pn, nn, pe, ne })
+      activeState.undo.push({ idx: i, pv, nv, pn, nn, pe, ne, ps: 0, ns: 0 })
       changedCount++
     }
     if (changedCount) {
-      activeState.undo.push({ idx: 99, pv: changedCount, nv: 0, pn: 0, nn: 0, pe: 0, ne: 0 })
+      activeState.undo.push({ idx: 99, pv: changedCount, nv: 0, pn: 0, nn: 0, pe: 0, ne: 0, ps: 0, ns: 0 })
     }
     if (activeState.undo.length > 200) activeState.undo.splice(0, activeState.undo.length - 200)
 
     activeState.grid = nextGrid
     activeState.notes = nextNotes
+    activeState.shadowNotes = buildLegalCandidateMasks(nextGrid, activeState.givens)
     activeState.errors = nextErrors
     activeState.conflicts = nextConflicts
     renderBoard()
@@ -1249,6 +1276,12 @@
       }
     }
     const cur = tl[traceState.stepIndex] || null
+    let focusIdx = -1
+    if (cur && (cur.kind === "fill" || cur.kind === "assume")) {
+      const fi = cur.focusIdx ?? cur.idx ?? -1
+      if (fi >= 0) focusIdx = fi
+    }
+    if (activeState && focusIdx >= 0) activeState.selected = focusIdx
     if (activeState && traceState.frames && traceState.frames.length) {
       const frame = traceState.frames[Math.min(traceState.stepIndex, traceState.frames.length - 1)]
       if (frame && frame.grid && frame.notes) {
@@ -1258,6 +1291,13 @@
         activeState.conflicts = recomputeAllConflicts(activeState.grid)
         activeState.tracePreview = true
         renderBoard()
+        if (focusIdx >= 0) {
+          const v = activeState.grid[focusIdx] || 0
+          if (v && !settings.highlightSame) {
+            for (let i = 0; i < 81; i++) if (i !== focusIdx && activeState.grid[i] === v) cellEls[i].classList.add("same")
+          }
+          cellEls[focusIdx].classList.add("trace-focus")
+        }
       }
     }
     applyTraceFocus(cur)
@@ -1292,7 +1332,7 @@
     if (activeState && tracePrev && tracePrev.grid) activeState.traceBaseGrid = new Uint8Array(tracePrev.grid)
     const br = h.traceBranches[h.traceDefaultBranch || 0] || null
     const frames = computeTraceFrames(br?.timeline || [], tracePrev?.grid || null, tracePrev?.notes || null)
-    traceState = { hint: h, branchIndex: h.traceDefaultBranch || 0, stepIndex: 0, frames, compact: h.tech === "nishio" }
+    traceState = { hint: h, branchIndex: h.traceDefaultBranch || 0, stepIndex: 0, frames, compact: h.tech === "forcing_cell" && h.forcingKind === "nishio" }
     openTraceDrawer()
     renderTraceDrawer()
   }
@@ -1503,7 +1543,8 @@
         autoNotes: true,
         hint: {
           type: "eliminate",
-          tech: "nishio",
+          tech: "forcing_cell",
+          forcingKind: "nishio",
           idx: 40,
           digit: 7,
           elimMask: bit(7),
@@ -2006,6 +2047,7 @@
 
   const onCellClick = (idx) => {
     if (!activeState || activeState.paused) return
+    if (ui.traceDrawer && !ui.traceDrawer.classList.contains("hidden")) return
     if (activeState.selected === idx) {
       activeState.selected = -1
       refreshHighlights()
@@ -2049,18 +2091,24 @@
     if (!activeState) return
     if (activeState.tracePreview) return
     clearHint()
-    const { grid, notes, givens } = activeState
+    const { grid, notes, givens, shadowNotes } = activeState
     if (givens[idx]) return
     if (activeState.bulkEraseNotes) activeState.bulkEraseNotes = false
 
     const prevVal = grid[idx]
     const prevNotes = notes[idx]
     const prevErrors = activeState.errors[idx]
+    const prevShadow = shadowNotes ? shadowNotes[idx] || 0 : 0
 
     if (kind === "fill" && prevVal !== 0 && nextVal !== 0) return
 
     if (kind === "note") {
       notes[idx] = nextNotesMask
+      if (shadowNotes) {
+        const added = nextNotesMask & ~prevNotes
+        const removed = prevNotes & ~nextNotesMask
+        shadowNotes[idx] = (prevShadow | added) & ~removed
+      }
     } else {
       grid[idx] = nextVal
       if (nextVal) activeState.suppressNotesPrompt = false
@@ -2097,6 +2145,8 @@
         nn: 0,
         pe: 0,
         ne: 0,
+        ps: 0,
+        ns: 0,
       })
     }
 
@@ -2117,6 +2167,8 @@
           nn,
           pe: activeState.errors[p],
           ne: activeState.errors[p],
+          ps: shadowNotes ? shadowNotes[p] || 0 : 0,
+          ns: shadowNotes ? shadowNotes[p] || 0 : 0,
         })
         cascadeCount++
       }
@@ -2130,6 +2182,8 @@
       nn: notes[idx],
       pe: prevErrors,
       ne: activeState.errors[idx],
+      ps: prevShadow,
+      ns: shadowNotes ? shadowNotes[idx] || 0 : 0,
     })
 
     if (kind === "fill" && nextVal) {
@@ -2192,7 +2246,9 @@
       for (let i = 0; i < 81; i++) {
         const pn = activeState.notes[i]
         if (!pn) continue
+        const ps = activeState.shadowNotes ? activeState.shadowNotes[i] || 0 : 0
         activeState.notes[i] = 0
+        if (activeState.shadowNotes) activeState.shadowNotes[i] = 0
         activeState.undo.push({
           idx: i,
           pv: activeState.grid[i],
@@ -2201,6 +2257,8 @@
           nn: 0,
           pe: activeState.errors[i],
           ne: activeState.errors[i],
+          ps,
+          ns: 0,
         })
         changed = true
         changedCount++
@@ -2214,6 +2272,8 @@
           nn: 0,
           pe: 0,
           ne: 0,
+          ps: 0,
+          ns: 0,
         })
       }
       if (activeState.undo.length > 200) activeState.undo.splice(0, activeState.undo.length - 200)
@@ -2242,10 +2302,11 @@
     clearHint()
     const u = activeState.undo.pop()
     if (!u) return
-    const { grid, notes } = activeState
+    const { grid, notes, shadowNotes } = activeState
     const applyUndo = (rec) => {
       grid[rec.idx] = rec.pv
       notes[rec.idx] = rec.pn
+      if (shadowNotes && rec.ps !== undefined) shadowNotes[rec.idx] = rec.ps
       activeState.errors[rec.idx] = rec.pe
     }
     if (u.idx === 99) {
@@ -2266,28 +2327,35 @@
 
   const autoNotes = () => {
     if (!activeState) return
+    const legal = buildLegalCandidateMasks(activeState.grid, activeState.givens)
     let changedCount = 0
     for (let i = 0; i < 81; i++) {
       const pn = activeState.notes[i] || 0
       if (activeState.grid[i] !== 0) {
-        if (pn !== 0) {
-          activeState.notes[i] = 0
-          activeState.undo.push({
-            idx: i,
-            pv: activeState.grid[i],
-            nv: activeState.grid[i],
-            pn,
-            nn: 0,
-            pe: activeState.errors[i],
-            ne: activeState.errors[i],
-          })
-          changedCount++
-        }
+        const ps = activeState.shadowNotes ? activeState.shadowNotes[i] || 0 : 0
+        if (pn === 0 && ps === 0) continue
+        if (activeState.shadowNotes) activeState.shadowNotes[i] = 0
+        activeState.notes[i] = 0
+        activeState.undo.push({
+          idx: i,
+          pv: activeState.grid[i],
+          nv: activeState.grid[i],
+          pn,
+          nn: 0,
+          pe: activeState.errors[i],
+          ne: activeState.errors[i],
+          ps,
+          ns: 0,
+        })
+        changedCount++
         continue
       }
-      const nn = computeCandidateMask(activeState.grid, i)
-      if (nn === pn) continue
+      const nn = legal[i] || 0
+      const ps = activeState.shadowNotes ? activeState.shadowNotes[i] || 0 : 0
+      const ns = nn
+      if (nn === pn && ps === ns) continue
       activeState.notes[i] = nn
+      if (activeState.shadowNotes) activeState.shadowNotes[i] = ns
       activeState.undo.push({
         idx: i,
         pv: activeState.grid[i],
@@ -2296,6 +2364,8 @@
         nn,
         pe: activeState.errors[i],
         ne: activeState.errors[i],
+        ps,
+        ns,
       })
       changedCount++
     }
@@ -2308,6 +2378,8 @@
         nn: 0,
         pe: 0,
         ne: 0,
+        ps: 0,
+        ns: 0,
       })
     }
     activeState.bulkEraseNotes = true
@@ -2462,7 +2534,8 @@
       for (let d = 1; d <= 9; d++) {
         const bit = 1 << (d - 1)
         const pos = []
-        for (const i of unit) {
+        for (let iIdx = 0; iIdx < unit.length; iIdx++) {
+          const i = unit[iIdx]
           if (givens[i]) continue
           if (grid[i] !== 0) continue
           if (legal[i] & bit) pos.push(i)
@@ -2479,7 +2552,9 @@
         }
         if (sameRow) {
           const targets = []
-          for (const j of rowCells[r0]) {
+          const rCells = rowCells[r0]
+          for (let jIdx = 0; jIdx < rCells.length; jIdx++) {
+            const j = rCells[jIdx]
             if (boxOf(j) === b) continue
             if (givens[j]) continue
             if (grid[j] !== 0) continue
@@ -2501,7 +2576,9 @@
         }
         if (sameCol) {
           const targets = []
-          for (const j of colCells[c0]) {
+          const cCells = colCells[c0]
+          for (let jIdx = 0; jIdx < cCells.length; jIdx++) {
+            const j = cCells[jIdx]
             if (boxOf(j) === b) continue
             if (givens[j]) continue
             if (grid[j] !== 0) continue
@@ -2529,7 +2606,8 @@
       for (let d = 1; d <= 9; d++) {
         const bit = 1 << (d - 1)
         const pos = []
-        for (const i of unit) {
+        for (let iIdx = 0; iIdx < unit.length; iIdx++) {
+          const i = unit[iIdx]
           if (givens[i]) continue
           if (grid[i] !== 0) continue
           if (legal[i] & bit) pos.push(i)
@@ -2545,7 +2623,9 @@
         }
         if (!sameBox) continue
         const targets = []
-        for (const j of boxCells[b0]) {
+        const bCells = boxCells[b0]
+        for (let jIdx = 0; jIdx < bCells.length; jIdx++) {
+          const j = bCells[jIdx]
           if (((j / 9) | 0) === r) continue
           if (givens[j]) continue
           if (grid[j] !== 0) continue
@@ -2571,7 +2651,8 @@
       for (let d = 1; d <= 9; d++) {
         const bit = 1 << (d - 1)
         const pos = []
-        for (const i of unit) {
+        for (let iIdx = 0; iIdx < unit.length; iIdx++) {
+          const i = unit[iIdx]
           if (givens[i]) continue
           if (grid[i] !== 0) continue
           if (legal[i] & bit) pos.push(i)
@@ -2587,7 +2668,9 @@
         }
         if (!sameBox) continue
         const targets = []
-        for (const j of boxCells[b0]) {
+        const bCells = boxCells[b0]
+        for (let jIdx = 0; jIdx < bCells.length; jIdx++) {
+          const j = bCells[jIdx]
           if (j % 9 === c) continue
           if (givens[j]) continue
           if (grid[j] !== 0) continue
@@ -2838,16 +2921,16 @@
   }
 
   const findHiddenSingle = (grid, givens, cands) => {
+    for (let b = 0; b < 9; b++) {
+      const h = findHiddenSingleInUnit(grid, givens, cands, boxCells[b], "box", b)
+      if (h) return h
+    }
     for (let r = 0; r < 9; r++) {
       const h = findHiddenSingleInUnit(grid, givens, cands, rowCells[r], "row", r)
       if (h) return h
     }
     for (let c = 0; c < 9; c++) {
       const h = findHiddenSingleInUnit(grid, givens, cands, colCells[c], "col", c)
-      if (h) return h
-    }
-    for (let b = 0; b < 9; b++) {
-      const h = findHiddenSingleInUnit(grid, givens, cands, boxCells[b], "box", b)
       if (h) return h
     }
     return null
@@ -3542,7 +3625,8 @@
             if (peers && dA === dB) continue
             const cut = ~(bitA | bitB) & 0x1ff
             let ok = true
-            for (const e of common) {
+            for (let eIdx = 0; eIdx < common.length; eIdx++) {
+              const e = common[eIdx]
               const me = legal[e] || 0
               if ((me & cut) === 0) {
                 ok = false
@@ -3554,6 +3638,8 @@
             allowedB |= bitB
           }
         }
+        
+        if (allowedA === ma && allowedB === mb) continue
 
         const rmA0 = ma & ~allowedA
         const rmB0 = mb & ~allowedB
@@ -3727,7 +3813,8 @@
                 if (peersBC && dB === dC) continue
                 const cut = ~(bitA | bitB | bitC) & 0x1ff
                 let ok = true
-                for (const e of common) {
+                for (let eIdx = 0; eIdx < common.length; eIdx++) {
+                  const e = common[eIdx]
                   const me = legal[e] || 0
                   if ((me & cut) === 0) {
                     ok = false
@@ -3741,6 +3828,8 @@
               }
             }
           }
+          
+          if (allowedA === ma && allowedB === mb && allowedC === mc) continue
 
           const rmA0 = ma & ~allowedA
           const rmB0 = mb & ~allowedB
@@ -4022,7 +4111,8 @@
           const cc = cf.idx >= 0 ? [cf.idx] : []
           return {
             type: "eliminate",
-            tech: "nishio",
+            tech: "forcing_cell",
+            forcingKind: "nishio",
             digit: d,
             elimMask: bit,
             unitCells: [],
@@ -4048,7 +4138,8 @@
           const cc = cf.idx >= 0 ? [cf.idx] : []
           return {
             type: "fill",
-            tech: "nishio",
+            tech: "forcing_cell",
+            forcingKind: "nishio",
             idx,
             digit: d,
             complexity: b.steps + 2,
@@ -5858,17 +5949,13 @@
 
       let best = null
       let bestScore = -Infinity
-      for (const cand of singles) {
-        const g2 = grid.slice ? grid.slice() : Array.from(grid)
-        g2[cand.idx] = cand.digit
-        const cf = checkGlobalConflict(g2)
-        if (cf) {
-          best = cand
-          break
-        }
+      for (let sIdx = 0; sIdx < singles.length; sIdx++) {
+        const cand = singles[sIdx]
         let impact = 0
         const bit = 1 << (cand.digit - 1)
-        for (const p of peersOf[cand.idx]) {
+        const pCells = peersOf[cand.idx]
+        for (let pIdx = 0; pIdx < pCells.length; pIdx++) {
+          const p = pCells[pIdx]
           if (givens[p]) continue
           if (grid[p] !== 0) continue
           const m = computeCandidateMask(grid, p)
@@ -6094,7 +6181,7 @@
     if (tech === "ate") return "ATE（Aligned Triplet Exclusion）"
     if (tech === "wxyzwing") return "WXYZ-Wing"
     if (tech === "vwxyzwing") return "VWXYZ-Wing"
-    if (tech === "nishio") return "Nishio（反证强制链）"
+    if (tech === "nishio") return "强制推理（反证）"
     if (tech === "swordfish_row" || tech === "swordfish_col") return "剑鱼（Swordfish）"
     if (tech === "jellyfish_row" || tech === "jellyfish_col") return "水母（Jellyfish）"
     if (tech === "xchain") return "X-Chain（单数字 AIC）"
@@ -6171,7 +6258,7 @@
     return { type: "action", tech: "need_more_notes", action: "fill_notes", nextTech: h.nextTech }
   }
 
-  const findNotesConflictHint = (grid, givens, legal, notes, allowAutoNotes) => {
+  const findNotesConflictHint = (grid, givens, legal, notes) => {
     if (!notes) return null
     for (let i = 0; i < 81; i++) {
       if (givens[i]) continue
@@ -6180,8 +6267,44 @@
       if (!n) continue
       const l = legal[i] || 0
       if (!l) continue
-      if ((n & l) === 0) return { type: "action", tech: "note_conflict", action: allowAutoNotes ? "auto_notes" : "note_mode", idx: i }
-      if ((n & ~l) !== 0) return { type: "action", tech: "note_conflict", action: allowAutoNotes ? "auto_notes" : "note_mode", idx: i }
+      const illegal = n & ~l
+      if (!illegal) continue
+      const bit = illegal & -illegal
+      const d = (Math.log2(bit) | 0) + 1
+      let conflictIdx = -1
+      for (const p of peersOf[i]) {
+        if (grid[p] === d) {
+          conflictIdx = p
+          break
+        }
+      }
+      if (conflictIdx < 0) continue
+      const ir = (i / 9) | 0
+      const ic = i % 9
+      const pr = (conflictIdx / 9) | 0
+      const pc = conflictIdx % 9
+      let unitType = "box"
+      let unitIndex = ((ir / 3) | 0) * 3 + ((ic / 3) | 0)
+      if (ir === pr) {
+        unitType = "row"
+        unitIndex = ir
+      } else if (ic === pc) {
+        unitType = "col"
+        unitIndex = ic
+      }
+      return {
+        type: "eliminate",
+        tech: "note_conflict",
+        idx: i,
+        digit: d,
+        conflictIdx,
+        unitType,
+        unitIndex,
+        elimMask: bit,
+        unitCells: unionUnique([i], [conflictIdx]),
+        sourceCells: [conflictIdx],
+        targetCells: [i],
+      }
     }
     return null
   }
@@ -6190,96 +6313,116 @@
     if (!activeState || activeState.paused) return null
     const { grid, givens } = activeState
     const legal = buildLegalCandidateMasks(grid, givens)
-    const notesForElim = activeState.notes ? new Uint16Array(activeState.notes) : new Uint16Array(81)
-    fillMissingNotes(grid, givens, legal, notesForElim)
-    const elim = buildElimCandidateMasks(legal, notesForElim)
     const allowAutoNotes = activeState.difficulty === "hard" || activeState.difficulty === "diabolical" || activeState.difficulty === "dev"
     if (!activeState.suppressNotesPrompt) {
-      const hc = findNotesConflictHint(grid, givens, legal, activeState.notes, allowAutoNotes)
+      const hc = findNotesConflictHint(grid, givens, legal, activeState.notes)
       if (hc) return hc
     }
+    const h0 = findFullHouse(grid, givens) || findHiddenSingle(grid, givens, legal) || findNakedSingle(grid, givens, legal)
+    if (h0) return h0
+    const shadow = activeState.shadowNotes || legal
+    const cand = buildElimCandidateMasks(legal, shadow)
+    const elim = buildElimCandidateMasks(cand, activeState.notes)
     const hasNotes = hasAnyNotes(activeState.notes)
     let shouldPromptNeedNotes = !hasNotes && !activeState.suppressNotesPrompt
     let shouldPromptNeedMoreNotes = false
-    if (shouldPromptNeedNotes) {
-      const hb = findBUG(grid, givens, legal)
-      if (hb) return hb
-      if (settings.showForcing !== false) {
-        const hn0 = findNishioForcingChains(grid, givens, legal)
-        if (hn0 && hn0.type === "fill") return hn0
-      }
-    }
     if (!activeState.suppressNotesPrompt) {
       const { empty, noted } = countNoteCoverage(grid, givens, activeState.notes)
       if (empty >= 12 && noted > 0 && noted / empty < 0.28) {
         shouldPromptNeedMoreNotes = true
       }
     }
-    const { empty, noted } = countNoteCoverage(grid, givens, activeState.notes)
-    const noteRatio = empty > 0 ? noted / empty : 0
-    const allowNoteBased = activeState.isDev || noteRatio >= 0.85
-
-    let best = null
-    let bestScore = Infinity
-    let bestType = ""
+    let bestNoNote = null
+    let bestNoNoteScore = Infinity
+    let bestNoNoteType = ""
+    let bestNote = null
+    let bestNoteScore = Infinity
+    let bestNoteType = ""
+    const isNoteTech = (h) => {
+      const tech = h?.tech || ""
+      if (tech === "note_single" || tech === "note_hidden_single") return false
+      return tech.startsWith("note_")
+    }
     const rules = [
       { min: 1.0, run: () => findFullHouse(grid, givens) },
       { min: 1.2, run: () => findHiddenSingle(grid, givens, legal) },
-      { min: 1.2, run: () => (allowNoteBased ? findNoteHiddenSingle(grid, givens, legal, activeState.notes) : null) },
-      { min: 1.5, run: () => (allowNoteBased ? findNoteSingle(grid, givens, legal, activeState.notes) : null) },
+      { min: 1.2, run: () => (hasNotes ? findNoteHiddenSingle(grid, givens, legal, activeState.notes) : null) },
+      { min: 1.5, run: () => (hasNotes ? findNoteSingle(grid, givens, legal, activeState.notes) : null) },
       { min: 2.3, run: () => findNakedSingle(grid, givens, legal) },
-      { min: 2.6, run: () => findLockedCandidates(grid, givens, legal, elim) },
-      { min: 3.0, run: () => findNakedPairs(grid, givens, legal, elim) },
-      { min: 3.2, run: () => findXWing(grid, givens, legal, elim) },
-      { min: 3.4, run: () => findHiddenPairs(grid, givens, legal, elim) },
-      { min: 3.6, run: () => findNakedSets(grid, givens, legal, elim, 3) },
-      { min: 3.8, run: () => findSwordfish(grid, givens, legal, elim) },
-      { min: 4.0, run: () => findHiddenSets(grid, givens, legal, elim, 3) },
-      { min: 4.0, run: () => findTurbotFish(grid, givens, legal, elim) },
-      { min: 4.2, run: () => findXYWing(grid, givens, legal, elim) },
-      { min: 4.4, run: () => findXYZWing(grid, givens, legal, elim) },
-      { min: 4.4, run: () => findWWing(grid, givens, legal, elim) },
-      { min: 4.5, run: () => findUniqueRectangleType1(grid, givens, legal) },
-      { min: 5.0, run: () => findNakedSets(grid, givens, legal, elim, 4) },
-      { min: 5.2, run: () => findJellyfish(grid, givens, legal, elim) },
-      { min: 5.4, run: () => findHiddenSets(grid, givens, legal, elim, 4) },
-      { min: 5.4, run: () => findThreeStrongLinks(grid, givens, legal, elim) },
-      { min: 5.6, run: () => findBUG(grid, givens, legal) },
-      { min: 5.8, run: () => findFourStrongLinks(grid, givens, legal, elim) },
-      { min: 6.2, run: () => findFiveStrongLinks(grid, givens, legal, elim) },
-      { min: 6.2, run: () => findAlignedPairExclusion(grid, givens, legal, elim) },
-      { min: 5.5, run: () => findWXYZWing(grid, givens, legal, elim) },
-      { min: 6.2, run: () => findVWXYZWing(grid, givens, legal, elim) },
-      { min: 7.5, run: () => findAlignedTripletExclusion(grid, givens, legal, elim) },
-      { min: 6.6, run: () => findSixStrongLinks(grid, givens, legal, elim) },
-      { min: 7.0, run: () => findSevenStrongLinks(grid, givens, legal, elim) },
-      { min: 7.4, run: () => findEightStrongLinks(grid, givens, legal, elim) },
-      { min: 6.6, run: () => findXChain(grid, givens, legal, elim) },
-      { min: 6.5, run: () => findXCycle(grid, givens, legal, elim) },
-      { min: 7.0, run: () => findXYCycle(grid, givens, legal, elim) },
-      { min: 6.8, run: () => (settings.showForcing !== false ? findForcingCell(grid, givens, legal, activeState.notes) : null) },
-      { min: 7.5, run: () => (settings.showForcing !== false ? findNishioForcingChains(grid, givens, legal) : null) },
+      { min: 2.6, run: () => findLockedCandidates(grid, givens, cand, elim) },
+      { min: 3.0, run: () => findNakedPairs(grid, givens, cand, elim) },
+      { min: 3.2, run: () => findXWing(grid, givens, cand, elim) },
+      { min: 3.4, run: () => findHiddenPairs(grid, givens, cand, elim) },
+      { min: 3.6, run: () => findNakedSets(grid, givens, cand, elim, 3) },
+      { min: 3.8, run: () => findSwordfish(grid, givens, cand, elim) },
+      { min: 4.0, run: () => findHiddenSets(grid, givens, cand, elim, 3) },
+      { min: 4.0, run: () => findTurbotFish(grid, givens, cand, elim) },
+      { min: 4.2, run: () => findXYWing(grid, givens, cand, elim) },
+      { min: 4.4, run: () => findXYZWing(grid, givens, cand, elim) },
+      { min: 4.4, run: () => findWWing(grid, givens, cand, elim) },
+      { min: 4.5, run: () => findUniqueRectangleType1(grid, givens, cand) },
+      { min: 5.0, run: () => findNakedSets(grid, givens, cand, elim, 4) },
+      { min: 5.2, run: () => findJellyfish(grid, givens, cand, elim) },
+      { min: 5.4, run: () => findHiddenSets(grid, givens, cand, elim, 4) },
+      { min: 5.4, run: () => findThreeStrongLinks(grid, givens, cand, elim) },
+      { min: 5.5, cost: "high", run: () => findWXYZWing(grid, givens, cand, elim) },
+      { min: 5.6, run: () => findBUG(grid, givens, cand) },
+      { min: 5.8, run: () => findFourStrongLinks(grid, givens, cand, elim) },
+      { min: 6.2, run: () => findFiveStrongLinks(grid, givens, cand, elim) },
+      { min: 6.2, cost: "high", run: () => findAlignedPairExclusion(grid, givens, cand, elim) },
+      { min: 6.2, cost: "high", run: () => findVWXYZWing(grid, givens, cand, elim) },
+      { min: 6.5, cost: "high", run: () => findXCycle(grid, givens, cand, elim) },
+      { min: 6.6, cost: "high", run: () => findSixStrongLinks(grid, givens, cand, elim) },
+      { min: 6.6, cost: "high", run: () => findXChain(grid, givens, cand, elim) },
+      { min: 6.8, run: () => (settings.showForcing !== false ? findForcingCell(grid, givens, cand, activeState.notes) : null) },
+      { min: 7.0, cost: "high", run: () => findSevenStrongLinks(grid, givens, cand, elim) },
+      { min: 7.0, cost: "high", run: () => findXYCycle(grid, givens, cand, elim) },
+      { min: 7.4, cost: "extreme", run: () => findEightStrongLinks(grid, givens, cand, elim) },
+      { min: 7.5, cost: "extreme", run: () => findAlignedTripletExclusion(grid, givens, cand, elim) },
+      { min: 7.5, run: () => (settings.showForcing !== false ? findNishioForcingChains(grid, givens, cand) : null) },
     ]
 
+    const searchStartTime = performance.now()
     for (const r of rules) {
-      if (r.min > bestScore) break
+      if (bestNoNoteScore <= r.min || bestNoteScore <= r.min) break
+      const elapsed = performance.now() - searchStartTime
+      if (r.cost === "extreme" && elapsed > 150) continue
+      if (r.cost === "high" && elapsed > 300) continue
+      
       const h = r.run()
       if (!h) continue
       const s = hintDifficultyScore(h)
       const t = h.type || ""
-      if (s < bestScore) {
-        best = h
-        bestScore = s
-        bestType = t
+      if (isNoteTech(h)) {
+        if (s < bestNoteScore) {
+          bestNote = h
+          bestNoteScore = s
+          bestNoteType = t
+          continue
+        }
+        if (s === bestNoteScore) {
+          if (bestNoteType !== "fill" && t === "fill") {
+            bestNote = h
+            bestNoteType = t
+          }
+        }
         continue
       }
-      if (s === bestScore) {
-        if (bestType !== "fill" && t === "fill") {
-          best = h
-          bestType = t
+      if (s < bestNoNoteScore) {
+        bestNoNote = h
+        bestNoNoteScore = s
+        bestNoNoteType = t
+        continue
+      }
+      if (s === bestNoNoteScore) {
+        if (bestNoNoteType !== "fill" && t === "fill") {
+          bestNoNote = h
+          bestNoNoteType = t
         }
       }
     }
+    const best = bestNoNote || bestNote
+    const bestScore = best ? hintDifficultyScore(best) : Infinity
     if (best) {
       if (shouldPromptNeedNotes && bestScore >= 3.0) return findNeedNotesHint(grid, givens, legal, allowAutoNotes)
       if (shouldPromptNeedMoreNotes && bestScore >= 3.0) return findNeedMoreNotesHint(grid, givens, legal, allowAutoNotes)
@@ -6318,6 +6461,7 @@
         el.classList.remove("hint-cycle-true")
         el.classList.remove("hint-cycle-false")
         el.classList.remove("hint-xycycle")
+        el.classList.remove("same")
       }
     }
     if (cellEls && cellEls.length) {
@@ -6399,25 +6543,27 @@
       return 6.2 + (2 - Math.abs(3 - bc)) * 0.1
     }
     if (t === "ate") return 7.5
-    if (t === "nishio") {
-      let added = 0.0
-      let ceil = 4
-      const complexity = h.complexity || 2
-      let length = complexity - 2
-      let isOdd = false
-      while (length > ceil) {
-        added += 0.1
-        ceil = !isOdd ? ((ceil * 3) / 2) | 0 : ((ceil * 4) / 3) | 0
-        isOdd = !isOdd
+    if (t === "forcing_cell") {
+      if (h.forcingKind === "nishio") {
+        let added = 0.0
+        let ceil = 4
+        const complexity = h.complexity || 2
+        let length = complexity - 2
+        let isOdd = false
+        while (length > ceil) {
+          added += 0.1
+          ceil = !isOdd ? ((ceil * 3) / 2) | 0 : ((ceil * 4) / 3) | 0
+          isOdd = !isOdd
+        }
+        return 7.5 + added
       }
-      return 7.5 + added
+      return 6.8
     }
     if (t === "six_strong_links") return 6.6 + strongLinksBump()
     if (t === "seven_strong_links") return 7.0 + strongLinksBump()
     if (t === "eight_strong_links") return 7.4 + strongLinksBump()
     if (t === "xcycle") return 6.5
     if (t === "xchain") return 6.6
-    if (t === "forcing_cell") return 6.8
     if (t === "xycycle") return 7.0
     return 4.0
   }
@@ -6490,7 +6636,6 @@
     if (t === "wxyzwing") return "WXYZ-Wing"
     if (t === "vwxyzwing") return "VWXYZ-Wing"
     if (t === "ate") return "ATE（Aligned Triplet Exclusion）"
-    if (t === "nishio") return "Nishio（反证强制链）"
     if (t === "four_strong_links") return "4 强链鱼（4SL）"
     if (t === "five_strong_links") return "5 强链鱼（5SL）"
     if (t === "six_strong_links") return "6 强链鱼（6SL）"
@@ -6500,7 +6645,7 @@
     if (t === "xcycle") return "X-Cycle（Nice Loop）"
     if (t === "xycycle") return "XY-Cycle（Nice Loop）"
     if (t === "unique_rectangle_1") return "唯一矩形（Unique Rectangle）"
-    if (t === "forcing_cell") return "单格强制（Forcing Cell）"
+    if (t === "forcing_cell") return "强制推理（Forcing）"
     return "提示"
   }
 
@@ -6521,6 +6666,46 @@
     if (!hintSvg || !ui.board || !h) return
     hintSvg.innerHTML = ""
     hintSvg.classList.remove("sf-anim")
+    const digitPointInBoard = (idx, digit) => {
+      const d = digit | 0
+      if (d < 1 || d > 9) return cellCenterInBoard(idx)
+      const boardRect = ui.board.getBoundingClientRect()
+      const rect = cellEls[idx].getBoundingClientRect()
+      const dx = ((d - 1) % 3) + 0.5
+      const dy = (((d - 1) / 3) | 0) + 0.5
+      const x = rect.left - boardRect.left + (dx * rect.width) / 3
+      const y = rect.top - boardRect.top + (dy * rect.height) / 3
+      return { x, y, w: boardRect.width, h: boardRect.height, cw: rect.width, ch: rect.height }
+    }
+    const linkWidth = 1.4
+    const strongStroke = step === 2 ? "rgba(255, 77, 77, .72)" : "rgba(255, 77, 77, .46)"
+    const weakStroke = step === 2 ? "rgba(58, 160, 255, .72)" : "rgba(58, 160, 255, .46)"
+    const isAdj = (aIdx, bIdx) => {
+      const ar = (aIdx / 9) | 0
+      const ac = aIdx % 9
+      const br = (bIdx / 9) | 0
+      const bc = bIdx % 9
+      return Math.abs(ar - br) + Math.abs(ac - bc) === 1
+    }
+    const mkAdjStrongBeam = (fromIdx, toIdx, baseWidth, cls, digit) => {
+      const p1 = cellCenterInBoard(fromIdx)
+      const p2 = cellCenterInBoard(toIdx)
+      const w = p1.w || 1
+      const hh = p1.h || 1
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
+      line.setAttribute("x1", String((p1.x / w) * 100))
+      line.setAttribute("y1", String((p1.y / hh) * 100))
+      line.setAttribute("x2", String((p2.x / w) * 100))
+      line.setAttribute("y2", String((p2.y / hh) * 100))
+      line.setAttribute("stroke", strongStroke)
+      line.setAttribute("stroke-width", String(linkWidth))
+      line.setAttribute("stroke-linecap", "round")
+      if (cls) line.setAttribute("class", cls)
+      return {
+        paths: [line],
+        dots: [],
+      }
+    }
     if (h.tech === "xywing") {
       const p = h.pivotIdx ?? -1
       const aIdx = h.wingAIdx ?? -1
@@ -6532,187 +6717,133 @@
       const w = p0.w || 1
       const hh = p0.h || 1
 
-      const trim = (from, to) => {
-        const dx = to.x - from.x
-        const dy = to.y - from.y
-        const len = Math.hypot(dx, dy) || 1
-        const ux = dx / len
-        const uy = dy / len
-        const rs = Math.max(0, Math.min(from.cw || 0, from.ch || 0) / 2 - 2)
-        const re = Math.max(0, Math.min(to.cw || 0, to.ch || 0) / 2 - 2)
-        return {
-          x1: from.x + ux * rs,
-          y1: from.y + uy * rs,
-          x2: to.x - ux * re,
-          y2: to.y - uy * re,
+      const cw = Math.max(1, p0.cw || 1)
+      const ch = Math.max(1, p0.ch || 1)
+      const yOcc = new Map()
+      const xOcc = new Map()
+      const addOcc = (m, key, a, b) => {
+        const l = Math.min(a, b)
+        const r = Math.max(a, b)
+        const arr = m.get(key) || []
+        arr.push([l, r])
+        m.set(key, arr)
+      }
+      const overlapLen = (m, key, a, b) => {
+        const l = Math.min(a, b)
+        const r = Math.max(a, b)
+        const arr = m.get(key) || []
+        let s = 0
+        for (const [x1, x2] of arr) {
+          const il = Math.max(l, x1)
+          const ir = Math.min(r, x2)
+          if (ir > il) s += ir - il
+        }
+        return s
+      }
+      const ports = (idx) => {
+        const r = (idx / 9) | 0
+        const c = idx % 9
+        const x0 = c * cw
+        const x1 = (c + 1) * cw
+        const y0 = r * ch
+        const y1 = (r + 1) * ch
+        const xm = (x0 + x1) / 2
+        const ym = (y0 + y1) / 2
+        return [
+          { x: x0, y: ym },
+          { x: x1, y: ym },
+          { x: xm, y: y0 },
+          { x: xm, y: y1 },
+        ]
+      }
+      const yLines = []
+      const xLines = []
+      for (let k = 0; k <= 9; k++) {
+        yLines.push(k * ch)
+        xLines.push(k * cw)
+      }
+      const segPenalty = (ori, key, a, b) => {
+        const ov = overlapLen(ori === "h" ? yOcc : xOcc, key, a, b)
+        const use = (ori === "h" ? yOcc : xOcc).get(key)?.length || 0
+        return ov * 8.0 + use * 800
+      }
+      const scoreRoute = (pts) => {
+        let len = 0
+        let pen = 0
+        for (let i = 0; i < pts.length - 1; i++) {
+          const a = pts[i]
+          const b = pts[i + 1]
+          if (a.x === b.x) {
+            len += Math.abs(b.y - a.y)
+            pen += segPenalty("v", Math.round(a.x), a.y, b.y)
+          } else if (a.y === b.y) {
+            len += Math.abs(b.x - a.x)
+            pen += segPenalty("h", Math.round(a.y), a.x, b.x)
+          } else {
+            return Infinity
+          }
+        }
+        return len + pen
+      }
+      const commitRoute = (pts) => {
+        for (let i = 0; i < pts.length - 1; i++) {
+          const a = pts[i]
+          const b = pts[i + 1]
+          if (a.x === b.x) addOcc(xOcc, Math.round(a.x), a.y, b.y)
+          else if (a.y === b.y) addOcc(yOcc, Math.round(a.y), a.x, b.x)
         }
       }
-
-      const mkLine = (from, to) => {
-        const { x1, y1, x2, y2 } = trim(from, to)
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
-        line.setAttribute("x1", String((x1 / w) * 100))
-        line.setAttribute("y1", String((y1 / hh) * 100))
-        line.setAttribute("x2", String((x2 / w) * 100))
-        line.setAttribute("y2", String((y2 / hh) * 100))
-        line.setAttribute("stroke", "rgba(47, 116, 63, .48)")
-        line.setAttribute("stroke-width", "1.6")
-        line.setAttribute("stroke-linecap", "round")
-        return line
-      }
-      hintSvg.appendChild(mkLine(p0, a0))
-      hintSvg.appendChild(mkLine(p0, b0))
-      return
-    }
-    if (h.tech === "xyzwing") {
-      const p = h.pivotIdx ?? -1
-      const aIdx = h.wingAIdx ?? -1
-      const bIdx = h.wingBIdx ?? -1
-      if (p < 0 || aIdx < 0 || bIdx < 0) return
-      const p0 = cellCenterInBoard(p)
-      const a0 = cellCenterInBoard(aIdx)
-      const b0 = cellCenterInBoard(bIdx)
-      const w = p0.w || 1
-      const hh = p0.h || 1
-
-      const trim = (from, to) => {
-        const dx = to.x - from.x
-        const dy = to.y - from.y
-        const len = Math.hypot(dx, dy) || 1
-        const ux = dx / len
-        const uy = dy / len
-        const rs = Math.max(0, Math.min(from.cw || 0, from.ch || 0) / 2 - 2)
-        const re = Math.max(0, Math.min(to.cw || 0, to.ch || 0) / 2 - 2)
-        return {
-          x1: from.x + ux * rs,
-          y1: from.y + uy * rs,
-          x2: to.x - ux * re,
-          y2: to.y - uy * re,
+      const pickRoute = (fromIdx, toIdx) => {
+        const ps = ports(fromIdx)
+        const pt = ports(toIdx)
+        let best = null
+        let bestScore = Infinity
+        for (const s of ps) {
+          for (const t of pt) {
+            for (const y of yLines) {
+              const pts = [s, { x: s.x, y }, { x: t.x, y }, t]
+              const sc = scoreRoute(pts)
+              if (sc < bestScore) {
+                bestScore = sc
+                best = pts
+              }
+            }
+            for (const x of xLines) {
+              const pts = [s, { x, y: s.y }, { x, y: t.y }, t]
+              const sc = scoreRoute(pts)
+              if (sc < bestScore) {
+                bestScore = sc
+                best = pts
+              }
+            }
+          }
         }
+        return best
       }
-
-      const mkLine = (from, to) => {
-        const { x1, y1, x2, y2 } = trim(from, to)
+      const draw = (fromIdx, toIdx, stroke, width, dash, cls) => {
+        const p1 = cellCenterInBoard(fromIdx)
+        const p2 = cellCenterInBoard(toIdx)
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
-        line.setAttribute("x1", String((x1 / w) * 100))
-        line.setAttribute("y1", String((y1 / hh) * 100))
-        line.setAttribute("x2", String((x2 / w) * 100))
-        line.setAttribute("y2", String((y2 / hh) * 100))
-        line.setAttribute("stroke", "rgba(47, 116, 63, .40)")
-        line.setAttribute("stroke-width", "1.2")
-        line.setAttribute("stroke-linecap", "round")
-        return line
-      }
-      hintSvg.appendChild(mkLine(p0, a0))
-      hintSvg.appendChild(mkLine(p0, b0))
-      hintSvg.appendChild(mkLine(a0, b0))
-      return
-    }
-    if (h.tech === "wxyzwing") {
-      const p = h.wxyzIdx ?? -1
-      const aIdx = h.wzIdx ?? -1
-      const bIdx = h.xzIdx ?? -1
-      const cIdx = h.yzIdx ?? -1
-      if (p < 0 || aIdx < 0 || bIdx < 0 || cIdx < 0) return
-      const p0 = cellCenterInBoard(p)
-      const a0 = cellCenterInBoard(aIdx)
-      const b0 = cellCenterInBoard(bIdx)
-      const c0 = cellCenterInBoard(cIdx)
-      const w = p0.w || 1
-      const hh = p0.h || 1
-
-      const trim = (from, to) => {
-        const dx = to.x - from.x
-        const dy = to.y - from.y
-        const len = Math.hypot(dx, dy) || 1
-        const ux = dx / len
-        const uy = dy / len
-        const rs = Math.max(0, Math.min(from.cw || 0, from.ch || 0) / 2 - 2)
-        const re = Math.max(0, Math.min(to.cw || 0, to.ch || 0) / 2 - 2)
-        return {
-          x1: from.x + ux * rs,
-          y1: from.y + uy * rs,
-          x2: to.x - ux * re,
-          y2: to.y - uy * re,
-        }
-      }
-
-      const mkLine = (from, to, stroke, width, dash) => {
-        const { x1, y1, x2, y2 } = trim(from, to)
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
-        line.setAttribute("x1", String((x1 / w) * 100))
-        line.setAttribute("y1", String((y1 / hh) * 100))
-        line.setAttribute("x2", String((x2 / w) * 100))
-        line.setAttribute("y2", String((y2 / hh) * 100))
+        line.setAttribute("x1", String((p1.x / w) * 100))
+        line.setAttribute("y1", String((p1.y / hh) * 100))
+        line.setAttribute("x2", String((p2.x / w) * 100))
+        line.setAttribute("y2", String((p2.y / hh) * 100))
         line.setAttribute("stroke", stroke)
         line.setAttribute("stroke-width", String(width))
         line.setAttribute("stroke-linecap", "round")
+        if (cls) line.setAttribute("class", cls)
         if (dash) line.setAttribute("stroke-dasharray", dash)
-        return line
+        hintSvg.appendChild(line)
       }
-
-      hintSvg.appendChild(mkLine(p0, a0, "rgba(47, 116, 63, .44)", 1.4, ""))
-      hintSvg.appendChild(mkLine(p0, b0, "rgba(47, 116, 63, .44)", 1.4, ""))
-      hintSvg.appendChild(mkLine(p0, c0, "rgba(47, 116, 63, .44)", 1.4, ""))
-      hintSvg.appendChild(mkLine(c0, a0, "rgba(58, 160, 255, .60)", 1.2, "4 3"))
-      hintSvg.appendChild(mkLine(c0, b0, "rgba(58, 160, 255, .60)", 1.2, "4 3"))
+      draw(p, aIdx, strongStroke, linkWidth, "", "wire-strong")
+      draw(p, bIdx, weakStroke, linkWidth, "2 2", "wire-weak")
       return
     }
-    if (h.tech === "vwxyzwing") {
-      const p = h.vwxyzIdx ?? -1
-      const aIdx = h.vzIdx ?? -1
-      const bIdx = h.wzIdx ?? -1
-      const cIdx = h.xzIdx ?? -1
-      const dIdx = h.yzIdx ?? -1
-      if (p < 0 || aIdx < 0 || bIdx < 0 || cIdx < 0 || dIdx < 0) return
-      const p0 = cellCenterInBoard(p)
-      const a0 = cellCenterInBoard(aIdx)
-      const b0 = cellCenterInBoard(bIdx)
-      const c0 = cellCenterInBoard(cIdx)
-      const d0 = cellCenterInBoard(dIdx)
-      const w = p0.w || 1
-      const hh = p0.h || 1
-
-      const trim = (from, to) => {
-        const dx = to.x - from.x
-        const dy = to.y - from.y
-        const len = Math.hypot(dx, dy) || 1
-        const ux = dx / len
-        const uy = dy / len
-        const rs = Math.max(0, Math.min(from.cw || 0, from.ch || 0) / 2 - 2)
-        const re = Math.max(0, Math.min(to.cw || 0, to.ch || 0) / 2 - 2)
-        return {
-          x1: from.x + ux * rs,
-          y1: from.y + uy * rs,
-          x2: to.x - ux * re,
-          y2: to.y - uy * re,
-        }
-      }
-
-      const mkLine = (from, to, stroke, width, dash) => {
-        const { x1, y1, x2, y2 } = trim(from, to)
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
-        line.setAttribute("x1", String((x1 / w) * 100))
-        line.setAttribute("y1", String((y1 / hh) * 100))
-        line.setAttribute("x2", String((x2 / w) * 100))
-        line.setAttribute("y2", String((y2 / hh) * 100))
-        line.setAttribute("stroke", stroke)
-        line.setAttribute("stroke-width", String(width))
-        line.setAttribute("stroke-linecap", "round")
-        if (dash) line.setAttribute("stroke-dasharray", dash)
-        return line
-      }
-
-      hintSvg.appendChild(mkLine(p0, a0, "rgba(47, 116, 63, .44)", 1.4, ""))
-      hintSvg.appendChild(mkLine(p0, b0, "rgba(47, 116, 63, .44)", 1.4, ""))
-      hintSvg.appendChild(mkLine(p0, c0, "rgba(47, 116, 63, .44)", 1.4, ""))
-      hintSvg.appendChild(mkLine(p0, d0, "rgba(47, 116, 63, .44)", 1.4, ""))
-      hintSvg.appendChild(mkLine(d0, a0, "rgba(58, 160, 255, .60)", 1.2, "4 3"))
-      hintSvg.appendChild(mkLine(d0, b0, "rgba(58, 160, 255, .60)", 1.2, "4 3"))
-      hintSvg.appendChild(mkLine(d0, c0, "rgba(58, 160, 255, .60)", 1.2, "4 3"))
+    if (h.tech === "xyzwing") return
+    if (h.tech === "wxyzwing" || h.tech === "vwxyzwing") {
       return
     }
-    if (h.tech === "nishio") {
+    if (h.tech === "forcing_cell" && h.forcingKind === "nishio") {
       const nodes = h.chainNodes || []
       if (nodes.length < 2) return
       const pts = []
@@ -6819,9 +6950,15 @@
         if (dash) line.setAttribute("stroke-dasharray", dash)
         return line
       }
-      hintSvg.appendChild(mkLine(p, q, "rgba(255, 77, 77, .88)", 2.2, ""))
-      hintSvg.appendChild(mkLine(a, p, "rgba(58, 160, 255, .72)", 1.4, "4 3"))
-      hintSvg.appendChild(mkLine(b, q, "rgba(58, 160, 255, .72)", 1.4, "4 3"))
+      if (isAdj(p, q)) {
+        const beam = mkAdjStrongBeam(p, q, linkWidth, "wire-strong", h.digit)
+        for (const el of beam.paths) hintSvg.appendChild(el)
+        for (const el of beam.dots) hintSvg.appendChild(el)
+      } else {
+        hintSvg.appendChild(mkLine(p, q, strongStroke, linkWidth, ""))
+      }
+      hintSvg.appendChild(mkLine(a, p, weakStroke, linkWidth, "4 3"))
+      hintSvg.appendChild(mkLine(b, q, weakStroke, linkWidth, "4 3"))
       return
     }
     if (h.tech === "empty_rectangle" || (h.tech === "turbot_fish" && h.variant === "empty_rectangle")) {
@@ -6863,10 +7000,16 @@
         if (dash) line.setAttribute("stroke-dasharray", dash)
         return line
       }
-      hintSvg.appendChild(mkLine(s, e, "rgba(255, 77, 77, .88)", 2.2, ""))
+      if (isAdj(s, e)) {
+        const beam = mkAdjStrongBeam(s, e, linkWidth, "wire-strong", h.digit)
+        for (const el of beam.paths) hintSvg.appendChild(el)
+        for (const el of beam.dots) hintSvg.appendChild(el)
+      } else {
+        hintSvg.appendChild(mkLine(s, e, strongStroke, linkWidth, ""))
+      }
       if (a >= 0 && b >= 0) {
-        hintSvg.appendChild(mkLine(s, a, "rgba(58, 160, 255, .72)", 1.4, "4 3"))
-        hintSvg.appendChild(mkLine(e, b, "rgba(58, 160, 255, .72)", 1.4, "4 3"))
+        hintSvg.appendChild(mkLine(s, a, weakStroke, linkWidth, "4 3"))
+        hintSvg.appendChild(mkLine(e, b, weakStroke, linkWidth, "4 3"))
       }
       return
     }
@@ -6911,12 +7054,24 @@
         if (dash) line.setAttribute("stroke-dasharray", dash)
         return line
       }
-      hintSvg.appendChild(mkLine(w1, w2, "rgba(255, 77, 77, .88)", 2.0, ""))
-      hintSvg.appendChild(mkLine(w3, w4, "rgba(255, 77, 77, .88)", 2.0, ""))
+      if (isAdj(w1, w2)) {
+        const beam = mkAdjStrongBeam(w1, w2, linkWidth, "wire-strong", h.digit)
+        for (const el of beam.paths) hintSvg.appendChild(el)
+        for (const el of beam.dots) hintSvg.appendChild(el)
+      } else {
+        hintSvg.appendChild(mkLine(w1, w2, strongStroke, linkWidth, ""))
+      }
+      if (isAdj(w3, w4)) {
+        const beam = mkAdjStrongBeam(w3, w4, linkWidth, "wire-strong", h.digit)
+        for (const el of beam.paths) hintSvg.appendChild(el)
+        for (const el of beam.dots) hintSvg.appendChild(el)
+      } else {
+        hintSvg.appendChild(mkLine(w3, w4, strongStroke, linkWidth, ""))
+      }
       const wk = h.weak || []
       const a = wk[0] ?? -1
       const b = wk[1] ?? -1
-      if (a >= 0 && b >= 0) hintSvg.appendChild(mkLine(a, b, "rgba(58, 160, 255, .72)", 1.4, "4 3"))
+      if (a >= 0 && b >= 0) hintSvg.appendChild(mkLine(a, b, weakStroke, linkWidth, "4 3"))
       return
     }
     if (
@@ -6962,17 +7117,26 @@
         if (dash) line.setAttribute("stroke-dasharray", dash)
         return line
       }
+      const beams = []
       for (const sl of sLinks) {
         const a = sl[0] ?? -1
         const b = sl[1] ?? -1
         if (a < 0 || b < 0) continue
-        hintSvg.appendChild(mkLine(a, b, "rgba(255, 77, 77, .88)", 2.0, ""))
+        if (isAdj(a, b)) {
+          beams.push(mkAdjStrongBeam(a, b, linkWidth, "wire-strong", h.digit))
+        } else {
+          hintSvg.appendChild(mkLine(a, b, strongStroke, linkWidth, ""))
+        }
       }
       for (const wl of wLinks) {
         const a = wl[0] ?? -1
         const b = wl[1] ?? -1
         if (a < 0 || b < 0) continue
-        hintSvg.appendChild(mkLine(a, b, "rgba(58, 160, 255, .72)", 1.4, "4 3"))
+        hintSvg.appendChild(mkLine(a, b, weakStroke, linkWidth, "4 3"))
+      }
+      for (const b of beams) {
+        for (const el of b.paths) hintSvg.appendChild(el)
+        for (const el of b.dots) hintSvg.appendChild(el)
       }
       return
     }
@@ -6983,39 +7147,23 @@
       const a0 = cellCenterInBoard(nodes[0])
       const w = a0.w || 1
       const hh = a0.h || 1
-      const trim = (from, to) => {
-        const dx = to.x - from.x
-        const dy = to.y - from.y
-        const len = Math.hypot(dx, dy) || 1
-        const ux = dx / len
-        const uy = dy / len
-        const rs = Math.max(0, Math.min(from.cw || 0, from.ch || 0) / 2 - 2)
-        const re = Math.max(0, Math.min(to.cw || 0, to.ch || 0) / 2 - 2)
-        return {
-          x1: from.x + ux * rs,
-          y1: from.y + uy * rs,
-          x2: to.x - ux * re,
-          y2: to.y - uy * re,
-        }
-      }
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i]
         const b = nodes[(i + 1) % nodes.length]
+        const t = links[i] || "weak"
         const p1 = cellCenterInBoard(a)
         const p2 = cellCenterInBoard(b)
-        const { x1, y1, x2, y2 } = trim(p1, p2)
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
-        line.setAttribute("x1", String((x1 / w) * 100))
-        line.setAttribute("y1", String((y1 / hh) * 100))
-        line.setAttribute("x2", String((x2 / w) * 100))
-        line.setAttribute("y2", String((y2 / hh) * 100))
-        const t = links[i] || "weak"
+        line.setAttribute("x1", String((p1.x / w) * 100))
+        line.setAttribute("y1", String((p1.y / hh) * 100))
+        line.setAttribute("x2", String((p2.x / w) * 100))
+        line.setAttribute("y2", String((p2.y / hh) * 100))
         if (t === "strong") {
-          line.setAttribute("stroke", "rgba(255, 77, 77, .86)")
-          line.setAttribute("stroke-width", "2.0")
+          line.setAttribute("stroke", strongStroke)
+          line.setAttribute("stroke-width", String(linkWidth))
         } else {
-          line.setAttribute("stroke", "rgba(58, 160, 255, .72)")
-          line.setAttribute("stroke-width", "1.4")
+          line.setAttribute("stroke", weakStroke)
+          line.setAttribute("stroke-width", String(linkWidth))
           line.setAttribute("stroke-dasharray", "4 3")
         }
         line.setAttribute("stroke-linecap", "round")
@@ -7062,14 +7210,12 @@
         const p1 = cellCenterInBoard(a)
         const p2 = cellCenterInBoard(b)
         const { x1, y1, x2, y2 } = trim(p1, p2)
-        hintSvg.appendChild(mkLine(x1, y1, x2, y2, "rgba(58, 160, 255, .72)", 1.4, "4 3"))
+        hintSvg.appendChild(mkLine(x1, y1, x2, y2, weakStroke, linkWidth, "4 3"))
       }
       for (const c of nodes) {
         const p = cellCenterInBoard(c)
         const dx = Math.max(2, (p.cw || 0) * 0.18)
-        hintSvg.appendChild(
-          mkLine(p.x - dx, p.y, p.x + dx, p.y, "rgba(255, 77, 77, .86)", 1.6, "")
-        )
+        hintSvg.appendChild(mkLine(p.x - dx, p.y, p.x + dx, p.y, strongStroke, linkWidth, ""))
       }
       return
     }
@@ -7095,25 +7241,36 @@
           y2: to.y - uy * re,
         }
       }
+      const beams = []
       for (let i = 0; i < nodes.length - 1; i++) {
-        const p1 = cellCenterInBoard(nodes[i])
-        const p2 = cellCenterInBoard(nodes[i + 1])
+        const t = links[i] || "weak"
+        const a = nodes[i]
+        const b = nodes[i + 1]
+        if (t === "strong" && isAdj(a, b)) {
+          beams.push(mkAdjStrongBeam(a, b, linkWidth, "wire-strong", h.digit))
+          continue
+        }
+        const p1 = cellCenterInBoard(a)
+        const p2 = cellCenterInBoard(b)
         const { x1, y1, x2, y2 } = trim(p1, p2)
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
         line.setAttribute("x1", String((x1 / w) * 100))
         line.setAttribute("y1", String((y1 / hh) * 100))
         line.setAttribute("x2", String((x2 / w) * 100))
         line.setAttribute("y2", String((y2 / hh) * 100))
-        const t = links[i] || "weak"
         if (t === "strong") {
-          line.setAttribute("stroke", "rgba(255, 77, 77, .72)")
-          line.setAttribute("stroke-width", "1.6")
+          line.setAttribute("stroke", strongStroke)
+          line.setAttribute("stroke-width", String(linkWidth))
         } else {
-          line.setAttribute("stroke", "rgba(58, 160, 255, .55)")
-          line.setAttribute("stroke-width", "1.35")
+          line.setAttribute("stroke", weakStroke)
+          line.setAttribute("stroke-width", String(linkWidth))
         }
         line.setAttribute("stroke-linecap", "round")
         hintSvg.appendChild(line)
+      }
+      for (const b of beams) {
+        for (const el of b.paths) hintSvg.appendChild(el)
+        for (const el of b.dots) hintSvg.appendChild(el)
       }
       return
     }
@@ -7256,6 +7413,10 @@
       el.classList.remove("hint-elim-er")
       el.classList.remove("hint-wing")
       el.classList.remove("hint-bridge")
+      el.classList.remove("hint-hex-pivot")
+      el.classList.remove("hint-rigid-wing")
+      el.classList.remove("hint-pivot")
+      el.classList.remove("hint-leaf")
       el.classList.remove("hint-chain-end")
       el.classList.remove("hint-chain-mid")
       el.classList.remove("hint-er-cand")
@@ -7263,6 +7424,7 @@
       el.classList.remove("hint-cycle-true")
       el.classList.remove("hint-cycle-false")
       el.classList.remove("hint-xycycle")
+      el.classList.remove("same")
     }
     if (h.type === "action") {
       renderHintLines(null, step)
@@ -7278,7 +7440,7 @@
           if (k === 0 || k === last) cellEls[i].classList.add("hint-chain-end")
           else cellEls[i].classList.add("hint-chain-mid")
         }
-      } else if (h.tech === "nishio") {
+      } else if (h.tech === "forcing_cell" && h.forcingKind === "nishio") {
         const nodes = h.chainNodes || h.sourceCells || []
         const last = nodes.length - 1
         for (let k = 0; k < nodes.length; k++) {
@@ -7340,6 +7502,36 @@
         if (b >= 0) cellEls[b].classList.add("hint-wing")
         if (p >= 0) cellEls[p].classList.add("hint-bridge")
         if (q >= 0) cellEls[q].classList.add("hint-bridge")
+      } else if (h.tech === "xywing") {
+        const p = h.pivotIdx ?? -1
+        const a = h.wingAIdx ?? -1
+        const b = h.wingBIdx ?? -1
+        if (p >= 0) cellEls[p].classList.add("hint-hex-pivot")
+        if (a >= 0) cellEls[a].classList.add("hint-rigid-wing")
+        if (b >= 0) cellEls[b].classList.add("hint-rigid-wing")
+      } else if (h.tech === "xyzwing") {
+        const p = h.pivotIdx ?? -1
+        const a = h.wingAIdx ?? -1
+        const b = h.wingBIdx ?? -1
+        if (p >= 0) cellEls[p].classList.add("hint-pivot")
+        if (a >= 0) cellEls[a].classList.add("hint-leaf")
+        if (b >= 0) cellEls[b].classList.add("hint-leaf")
+      } else if (h.tech === "wxyzwing") {
+        const p = h.wxyzIdx ?? -1
+        if (p >= 0) cellEls[p].classList.add("hint-pivot")
+        for (const i of h.sourceCells || []) {
+          if (i < 0) continue
+          if (i === p) continue
+          cellEls[i].classList.add("hint-leaf")
+        }
+      } else if (h.tech === "vwxyzwing") {
+        const p = h.vwxyzIdx ?? -1
+        if (p >= 0) cellEls[p].classList.add("hint-pivot")
+        for (const i of h.sourceCells || []) {
+          if (i < 0) continue
+          if (i === p) continue
+          cellEls[i].classList.add("hint-leaf")
+        }
       } else {
         for (const i of h.sourceCells || []) cellEls[i].classList.add("hint-source")
       }
@@ -7349,6 +7541,8 @@
           if (h.tech === "wwing") cellEls[i].classList.add("hint-elim-wwing")
           if (h.tech === "empty_rectangle") cellEls[i].classList.add("hint-elim-er")
           if (h.tech === "turbot_fish") cellEls[i].classList.add("hint-elim-er")
+          if (h.tech === "wxyzwing" || h.tech === "vwxyzwing") cellEls[i].classList.add("hint-elim-wing")
+          if (h.tech === "xywing" || h.tech === "xyzwing") cellEls[i].classList.add("hint-elim-wing")
           if (
             h.tech === "three_strong_links" ||
             h.tech === "four_strong_links" ||
@@ -7367,7 +7561,7 @@
           h.tech === "turbot_fish" ||
           h.tech === "wxyzwing" ||
           h.tech === "vwxyzwing" ||
-          h.tech === "nishio" ||
+          (h.tech === "forcing_cell" && h.forcingKind === "nishio") ||
           h.tech === "three_strong_links" ||
           h.tech === "four_strong_links" ||
           h.tech === "five_strong_links" ||
@@ -7384,6 +7578,7 @@
     }
     if (
       h.tech === "hidden_single" ||
+      h.tech === "note_hidden_single" ||
       h.tech === "full_house" ||
       h.tech === "direct_pointing" ||
       h.tech === "direct_claiming" ||
@@ -7393,8 +7588,16 @@
       const unit =
         h.unitType === "row" ? rowCells[h.unitIndex] : h.unitType === "col" ? colCells[h.unitIndex] : boxCells[h.unitIndex]
       for (const i of unit) cellEls[i].classList.add("hint-unit")
+      
+      if ((h.tech === "hidden_single" || h.tech === "note_hidden_single") && h.digit) {
+        for (let i = 0; i < 81; i++) {
+          if (activeState.grid[i] === h.digit) {
+            cellEls[i].classList.add("same")
+          }
+        }
+      }
     } else {
-      if (h.tech === "nishio") {
+      if (h.tech === "forcing_cell" && h.forcingKind === "nishio") {
         const nodes = h.chainNodes || h.sourceCells || []
         const last = nodes.length - 1
         for (let k = 0; k < nodes.length; k++) {
@@ -7447,9 +7650,27 @@
       return "点击“补全笔记”把空白格子的候选补上。"
     }
     if (h.tech === "note_conflict") {
-      if (step === 1) return "检测到笔记与盘面冲突：有格子的笔记包含不可能的数字。"
-      if (h.action === "auto_notes") return "建议点“一键笔记”重新生成候选。"
-      return "建议切到笔记模式，修正或清空冲突格子的笔记。"
+      const a = h.idx ?? -1
+      const b = h.conflictIdx ?? -1
+      const d = h.digit ?? 0
+      if (a < 0 || b < 0 || d <= 0) {
+        if (step === 1) return "检测到笔记与盘面冲突：有格子的笔记包含不可能的数字。"
+        return "可以排除冲突的笔记候选数。"
+      }
+      const ar = ((a / 9) | 0) + 1
+      const ac = (a % 9) + 1
+      const br = ((b / 9) | 0) + 1
+      const bc = (b % 9) + 1
+      const unit =
+        h.unitType === "row"
+          ? `第 ${h.unitIndex + 1} 行`
+          : h.unitType === "col"
+            ? `第 ${h.unitIndex + 1} 列`
+            : `第 ${h.unitIndex + 1} 宫`
+      if (step === 1) {
+        return `第 ${ar} 行第 ${ac} 列的笔记包含 ${d}，但 ${unit} 已在第 ${br} 行第 ${bc} 列填入了 ${d}，两者冲突。`
+      }
+      return `可以排除第 ${ar} 行第 ${ac} 列的笔记候选 ${d}。`
     }
     if (h.tech === "full_house") {
       const u = unitLabel(h.unitType, h.unitIndex)
@@ -7500,15 +7721,19 @@
     }
     if (h.tech === "ape") {
       if (step === 1) return "这里使用 APE（Aligned Pair Exclusion）：枚举两格的候选组合，排除会让共同双值格“无候选”的组合。"
-      return "因此目标格里某些候选在所有可行组合中都不会出现，可以从笔记中排除。"
+      return "因此目标格里某些候选在所有可行组合中都不会出现，可以排除。"
     }
     if (h.tech === "wxyzwing") {
       const dl = !!h.doubleLink
-      const bc = h.biggestCardinality || 0
       if (step === 1) {
-        if (dl) return `这里形成了 WXYZ-Wing（双链）：四格构成 {W,X,Y,Z} 的结构，可同时推出多组候选排除。`
-        return `这里形成了 WXYZ-Wing：四格候选合并后恰好是 4 个数字，可推出候选排除。`
+        const yz = h.yzIdx ?? -1
+        const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
+        const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
+        if (yz >= 0 && x && z)
+          return `第 1 步：锁定结构。深金框是枢纽格，浅金框是叶子格；其中有一个叶子格只剩 {${x}, ${z}}，可以把它当成“二选一开关”。`
+        return "第 1 步：锁定结构。深金框是枢纽格，浅金框是叶子格；先只关注这些点与连线。"
       }
+      const prefix = dl ? "第 2 步：逻辑连锁（双链）。" : "第 2 步：逻辑连锁。"
       const ds = []
       let m = 0
       for (const e of h.elimList || []) m |= e.mask || 0
@@ -7517,17 +7742,27 @@
         m ^= bit
         ds.push((Math.log2(bit) | 0) + 1)
       }
-      if (!ds.length) return "因此红叉处的候选可以排除。"
-      if (bc) return `因此红叉处的候选（${ds.join(" / ")}）可以排除。`
-      return `因此红叉处的候选（${ds.join(" / ")}）可以排除。`
+      const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
+      const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
+      if (!ds.length) {
+        if (x && z) return `${prefix}先用“二选一开关”推导：当叶子格只能是 {${x}, ${z}} 时，只要推出它不可能是其中一个数，它就会被迫选另一个数。把这条规则沿着结构传递，就能得到排除结论。`
+        return `${prefix}核心规则是“二选一”：否定其中一个候选，就会强制另一个候选成立。把这个规则沿结构传递后得到排除结论。`
+      }
+      if (x && z)
+        return `${prefix}把叶子格 {${x}, ${z}} 当成“二选一开关”，再把推导沿连线传递：无论枢纽格最终是哪一种情况，都会得到同一个结论，所以红叉处的候选（${ds.join(" / ")}）可以删除。`
+      return `${prefix}把“二选一开关”的推导沿连线传递：无论枢纽格最终是哪一种情况，都会得到同一个结论，所以红叉处的候选（${ds.join(" / ")}）可以删除。`
     }
     if (h.tech === "vwxyzwing") {
       const dl = !!h.doubleLink
-      const bc = h.biggestCardinality || 0
       if (step === 1) {
-        if (dl) return "这里形成了 VWXYZ-Wing（双链）：五数字结构可推出多组候选排除。"
-        return "这里形成了 VWXYZ-Wing：五格候选合并后恰好是 5 个数字，可推出候选排除。"
+        const yz = h.yzIdx ?? -1
+        const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
+        const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
+        if (yz >= 0 && x && z)
+          return `第 1 步：锁定结构。深金框是枢纽格，浅金框是叶子格；其中有一个叶子格只剩 {${x}, ${z}}，可以把它当成“二选一开关”。`
+        return "第 1 步：锁定结构。深金框是枢纽格，浅金框是叶子格；先只关注这些点与连线。"
       }
+      const prefix = dl ? "第 2 步：逻辑连锁（双链）。" : "第 2 步：逻辑连锁。"
       const ds = []
       let m = 0
       for (const e of h.elimList || []) m |= e.mask || 0
@@ -7536,16 +7771,22 @@
         m ^= bit
         ds.push((Math.log2(bit) | 0) + 1)
       }
-      if (!ds.length) return "因此红叉处的候选可以排除。"
-      if (bc) return `因此红叉处的候选（${ds.join(" / ")}）可以排除。`
-      return `因此红叉处的候选（${ds.join(" / ")}）可以排除。`
+      const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
+      const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
+      if (!ds.length) {
+        if (x && z) return `${prefix}先用“二选一开关”推导：当叶子格只能是 {${x}, ${z}} 时，只要推出它不可能是其中一个数，它就会被迫选另一个数。把这条规则沿着结构传递，就能得到排除结论。`
+        return `${prefix}核心规则是“二选一”：否定其中一个候选，就会强制另一个候选成立。把这个规则沿结构传递后得到排除结论。`
+      }
+      if (x && z)
+        return `${prefix}把叶子格 {${x}, ${z}} 当成“二选一开关”，再把推导沿连线传递：无论枢纽格最终是哪一种情况，都会得到同一个结论，所以红叉处的候选（${ds.join(" / ")}）可以删除。`
+      return `${prefix}把“二选一开关”的推导沿连线传递：无论枢纽格最终是哪一种情况，都会得到同一个结论，所以红叉处的候选（${ds.join(" / ")}）可以删除。`
     }
     if (h.tech === "ate") {
       if (step === 1) return "这里使用 ATE（Aligned Triplet Exclusion）：枚举三格的候选组合，排除会让共同格“无候选”的组合。"
-      return "因此目标格里某些候选在所有可行组合中都不会出现，可以从笔记中排除。"
+      return "因此目标格里某些候选在所有可行组合中都不会出现，可以排除。"
     }
-    if (h.tech === "nishio") {
-      if (step === 1) return "这里使用 Nishio（反证强制链）：对某个候选做假设并推演，若推出矛盾则否定该假设。"
+    if (h.tech === "forcing_cell" && h.forcingKind === "nishio") {
+      if (step === 1) return "这里使用强制推理（反证）：对某个候选做假设并推演，若推出矛盾则否定该假设。"
       const cfType = h.conflictType || ""
       const cfIdx = h.conflictIdx ?? -1
       const cfR = cfIdx >= 0 ? ((cfIdx / 9) | 0) + 1 : 0
@@ -7766,34 +8007,16 @@
       return `因此同时“看见”链条两端的格子中，候选 ${h.digit} 都可以排除。`
     }
     if (h.tech === "xyzwing") {
-      const p = h.pivotIdx ?? -1
-      const a = h.wingAIdx ?? -1
-      const b = h.wingBIdx ?? -1
-      const pr = p >= 0 ? ((p / 9) | 0) + 1 : 0
-      const pc = p >= 0 ? (p % 9) + 1 : 0
-      const ar = a >= 0 ? ((a / 9) | 0) + 1 : 0
-      const ac = a >= 0 ? (a % 9) + 1 : 0
-      const br = b >= 0 ? ((b / 9) | 0) + 1 : 0
-      const bc = b >= 0 ? (b % 9) + 1 : 0
       if (step === 1) {
-        return `这里形成了 XYZ-Wing：中心格（第 ${pr} 行第 ${pc} 列）与两翼（第 ${ar} 行第 ${ac} 列、 第 ${br} 行第 ${bc} 列）构成三角锁定。`
+        return "第 1 步：锁定结构。棕色框是枢纽格，黄色框是叶子格；三者合起来形成一个“无论枢纽怎么选，都能逼出同一个结论”的结构。"
       }
-      return `因此同时“看见”中心格与两翼的格子里，候选 ${h.digit} 都可以排除。`
+      return `第 2 步：二选一推导。枢纽格有三种可能；每一种可能都会迫使其中一个叶子格只能选择目标数。于是任何同时受到两个叶子格影响的位置，都不可能再放目标数 ${h.digit}（红叉处可删）。`
     }
     if (h.tech === "xywing") {
-      const p = h.pivotIdx ?? -1
-      const a = h.wingAIdx ?? -1
-      const b = h.wingBIdx ?? -1
-      const pr = p >= 0 ? ((p / 9) | 0) + 1 : 0
-      const pc = p >= 0 ? (p % 9) + 1 : 0
-      const ar = a >= 0 ? ((a / 9) | 0) + 1 : 0
-      const ac = a >= 0 ? (a % 9) + 1 : 0
-      const br = b >= 0 ? ((b / 9) | 0) + 1 : 0
-      const bc = b >= 0 ? (b % 9) + 1 : 0
       if (step === 1) {
-        return `这里形成了 XY-Wing：枢纽格（第 ${pr} 行第 ${pc} 列）与两翼（第 ${ar} 行第 ${ac} 列、 第 ${br} 行第 ${bc} 列）构成 V 形锁定。`
+        return "第 1 步：锁定结构。六边形框是枢纽格，两个方框是叶子格；先只关注这些点与连线。"
       }
-      return `因此同时“看见”两翼的格子里，候选 ${h.digit} 都可以排除。`
+      return `第 2 步：二选一开关。枢纽格只能二选一：如果它选了其中一个数，就会逼得某个叶子只能填目标数 ${h.digit}；反过来亦然。于是任何同时受到两片叶子影响的位置，都不可能再放 ${h.digit}（红叉处可删）。`
     }
     if (h.tech === "xwing_row" || h.tech === "xwing_col") {
       const vs = h.vertices || []
@@ -7844,6 +8067,15 @@
     ui.hintMessage.textContent = hintMessageText(h, step)
     ui.btnHintNext.textContent = step === 2 ? "上一步" : "下一步"
     ui.btnHintApply.classList.toggle("hidden", step !== 2)
+    let hasAnyNotes = false
+    if (activeState && activeState.notes) {
+      for (let i = 0; i < 81; i++) {
+        if (activeState.notes[i]) {
+          hasAnyNotes = true
+          break
+        }
+      }
+    }
     if (h.type === "action")
       ui.btnHintApply.textContent =
         h.action === "auto_notes"
@@ -7853,13 +8085,10 @@
             : h.action === "enable_forcing"
               ? "开启强制推理"
               : "笔记"
-    else ui.btnHintApply.textContent = h.type === "eliminate" ? "排除" : "填入"
+    else ui.btnHintApply.textContent = h.type === "eliminate" ? (hasAnyNotes ? "排除" : "知道了") : "填入"
     ui.btnHintApply.disabled = false
     if (step === 2 && h.type === "eliminate") {
-      const legal = buildLegalCandidateMasks(activeState.grid, activeState.givens)
-      const notesForElim = activeState.notes ? new Uint16Array(activeState.notes) : new Uint16Array(81)
-      fillMissingNotes(activeState.grid, activeState.givens, legal, notesForElim)
-      const cands = buildElimCandidateMasks(legal, notesForElim)
+      const cands = activeState.notes || new Uint16Array(81)
       const elimEntries = []
       if (h.elimList && h.elimList.length) {
         for (const e of h.elimList) {
@@ -7882,11 +8111,6 @@
           const d = (Math.log2(bit) | 0) + 1
           const s = cellEls[e.idx].querySelector(`.notes span[data-n="${d}"]`)
           if (s) {
-            if (!s.textContent) {
-              s.textContent = String(d)
-              s.classList.add("on")
-              s.classList.add("hint-temp")
-            }
             s.classList.add("elim")
           }
         }
@@ -7936,9 +8160,10 @@
     if (activeState.isDev) return
     if (activeState.tracePreview) return
     const notesStr = Array.from(activeState.notes).map(base36Pad2).join("")
+    const shadowStr = Array.from(activeState.shadowNotes || new Uint16Array(81)).map(base36Pad2).join("")
     const undoStr = activeState.undo
       .slice(-80)
-      .map((u) => [u.idx, u.pv, u.nv, u.pn, u.nn, u.pe, u.ne].map((x) => base36Pad2(x)).join(""))
+      .map((u) => [u.idx, u.pv, u.nv, u.pn, u.nn, u.pe, u.ne, u.ps || 0, u.ns || 0].map((x) => base36Pad2(x)).join(""))
       .join("")
     const a = {
       difficulty: activeState.difficulty,
@@ -7948,6 +8173,7 @@
       grid: digitsToString(activeState.grid),
       givens: digitsToString(activeState.givens),
       notes: notesStr,
+      shadow: shadowStr,
       undo: undoStr,
       noteMode: !!activeState.noteMode,
       lockedDigit: activeState.lockedDigit || 0,
@@ -7964,6 +8190,13 @@
     const givens = digitsFromString(a.givens)
     const notes = new Uint16Array(81)
     for (let i = 0; i < 81; i++) notes[i] = fromBase36(a.notes.slice(i * 2, i * 2 + 2))
+    const shadowNotes = new Uint16Array(81)
+    if (a.shadow && typeof a.shadow === "string" && a.shadow.length >= 162) {
+      for (let i = 0; i < 81; i++) shadowNotes[i] = fromBase36(a.shadow.slice(i * 2, i * 2 + 2))
+    } else {
+      const legal = buildLegalCandidateMasks(grid, givens)
+      for (let i = 0; i < 81; i++) shadowNotes[i] = legal[i] || 0
+    }
     const errors = new Uint8Array(81)
     if (a.solution) {
       for (let i = 0; i < 81; i++) {
@@ -7977,12 +8210,37 @@
     const conflicts = recomputeAllConflicts(grid)
     const undo = []
     const u = a.undo || ""
-    const recLen = 14
+    const recLen = u.length % 18 === 0 ? 18 : 14
+    const fields = recLen === 18 ? 9 : 7
     for (let off = 0; off + recLen <= u.length; off += recLen) {
       const chunk = u.slice(off, off + recLen)
       const parts = []
-      for (let i = 0; i < 7; i++) parts.push(fromBase36(chunk.slice(i * 2, i * 2 + 2)))
-      undo.push({ idx: parts[0], pv: parts[1], nv: parts[2], pn: parts[3], nn: parts[4], pe: parts[5], ne: parts[6] })
+      for (let i = 0; i < fields; i++) parts.push(fromBase36(chunk.slice(i * 2, i * 2 + 2)))
+      if (fields === 9) {
+        undo.push({
+          idx: parts[0],
+          pv: parts[1],
+          nv: parts[2],
+          pn: parts[3],
+          nn: parts[4],
+          pe: parts[5],
+          ne: parts[6],
+          ps: parts[7],
+          ns: parts[8],
+        })
+      } else {
+        undo.push({
+          idx: parts[0],
+          pv: parts[1],
+          nv: parts[2],
+          pn: parts[3],
+          nn: parts[4],
+          pe: parts[5],
+          ne: parts[6],
+          ps: parts[3],
+          ns: parts[4],
+        })
+      }
     }
     activeState = {
       difficulty: a.difficulty,
@@ -7992,6 +8250,7 @@
       grid,
       givens,
       notes,
+      shadowNotes,
       errors,
       conflicts,
       undo,
@@ -8041,6 +8300,8 @@
     }
     const legal = buildLegalCandidateMasks(grid, givens)
     const notes = autoNotes ? legal : new Uint16Array(81)
+    const shadowNotes = new Uint16Array(81)
+    for (let i = 0; i < 81; i++) shadowNotes[i] = legal[i] || 0
     const errors = new Uint8Array(81)
     const conflicts = recomputeAllConflicts(grid)
     activeState = {
@@ -8051,6 +8312,7 @@
       grid,
       givens,
       notes,
+      shadowNotes,
       errors,
       conflicts,
       undo: [],
@@ -8088,6 +8350,7 @@
     const givens = digitsFromString(puzzle)
     const grid = digitsFromString(puzzle)
     const notes = new Uint16Array(81)
+    const shadowNotes = buildLegalCandidateMasks(grid, givens)
     const errors = new Uint8Array(81)
     const conflicts = recomputeAllConflicts(grid)
     for (let i = 0; i < 81; i++) givens[i] = givens[i] ? 1 : 0
@@ -8099,6 +8362,7 @@
       grid,
       givens,
       notes,
+      shadowNotes,
       errors,
       conflicts,
       undo: [],
@@ -8204,6 +8468,7 @@
       if (!ui.screenLevels.classList.contains("hidden")) renderLevels()
     })
     ui.btnBack.addEventListener("click", showLevelsScreen)
+    ui.btnHome.addEventListener("click", showHomeScreen)
     ui.btnLevelsBack.addEventListener("click", () => {
       if (levelsMode === "levels") {
         levelsMode = "chapters"
@@ -8287,6 +8552,95 @@
       openNextHint()
     }
 
+    let kbFocusEl = null
+    let kbNavActive = false
+    const setKbFocus = (el) => {
+      if (kbFocusEl && kbFocusEl !== el) {
+        kbFocusEl.classList.remove("kb-focus")
+        if (kbFocusEl.classList.contains("level-tile")) kbFocusEl.classList.remove("focus")
+      }
+      kbFocusEl = el || null
+      if (kbFocusEl) {
+        if (kbFocusEl.classList.contains("level-tile")) {
+          kbFocusEl.classList.add("focus")
+          if (levelsMode === "levels") {
+            const local = Number(kbFocusEl.dataset.index || -1)
+            if (Number.isFinite(local) && local >= 0) focusLevel = currentChapter * chapterSize + local
+          }
+        } else {
+          kbFocusEl.classList.add("kb-focus")
+        }
+      }
+    }
+    const clearKbFocus = () => setKbFocus(null)
+
+    window.addEventListener(
+      "pointerdown",
+      () => {
+        kbNavActive = false
+        clearKbFocus()
+      },
+      true
+    )
+
+    const isVisibleEl = (el) => !!(el && el.getClientRects && el.getClientRects().length)
+    const collectButtons = (root) => {
+      if (!root) return []
+      const els = Array.from(root.querySelectorAll("button, [data-kb-toggle]"))
+      return els.filter((el) => {
+        if (!isVisibleEl(el)) return false
+        if (el.classList && el.classList.contains("hidden")) return false
+        if ("disabled" in el && el.disabled) return false
+        if (el.getAttribute && el.getAttribute("aria-disabled") === "true") return false
+        return true
+      })
+    }
+
+    const moveFocusSpatial = (root, dirX, dirY) => {
+      const els = collectButtons(root)
+      if (!els.length) return
+      const cur = document.activeElement
+      let from = cur && cur.tagName === "BUTTON" && root.contains(cur) ? cur : kbFocusEl && root.contains(kbFocusEl) ? kbFocusEl : null
+      if (!from) {
+        const focusedTile = root.querySelector("button.level-tile.focus")
+        if (focusedTile && els.includes(focusedTile)) from = focusedTile
+      }
+      if (!from || !els.includes(from)) {
+        els[0].focus()
+        setKbFocus(els[0])
+        return
+      }
+      const rc = from.getBoundingClientRect()
+      const cx = (rc.left + rc.right) / 2
+      const cy = (rc.top + rc.bottom) / 2
+      let best = null
+      let bestScore = Infinity
+      for (const el of els) {
+        if (el === from) continue
+        const r = el.getBoundingClientRect()
+        const ex = (r.left + r.right) / 2
+        const ey = (r.top + r.bottom) / 2
+        const dx = ex - cx
+        const dy = ey - cy
+        const proj = dirX * dx + dirY * dy
+        if (proj <= 2) continue
+        const perp = Math.abs(dirX * dy - dirY * dx)
+        const score = perp * 2.2 + proj
+        if (score < bestScore) {
+          bestScore = score
+          best = el
+        }
+      }
+      if (best) {
+        if (best.classList.contains("level-tile")) {
+          const prevFocus = root.querySelector("button.level-tile.focus")
+          if (prevFocus && prevFocus !== best) prevFocus.classList.remove("focus")
+        }
+        best.focus()
+        setKbFocus(best)
+      }
+    }
+
     const tracePrev = () => {
       if (!traceState) return
       traceState.stepIndex = Math.max(0, traceState.stepIndex - 1)
@@ -8341,6 +8695,63 @@
         return
       }
 
+      const navDir =
+        e.code === "KeyW" || e.key === "ArrowUp"
+          ? { x: 0, y: -1 }
+          : e.code === "KeyS" || e.key === "ArrowDown"
+            ? { x: 0, y: 1 }
+            : e.code === "KeyA" || e.key === "ArrowLeft"
+              ? { x: -1, y: 0 }
+              : e.code === "KeyD" || e.key === "ArrowRight"
+                ? { x: 1, y: 0 }
+                : null
+      if (navDir) {
+        const inSettings = ui.settingsModal && !ui.settingsModal.classList.contains("hidden")
+        const inPause = ui.pauseOverlay && !ui.pauseOverlay.classList.contains("hidden")
+        const inLevels = ui.screenLevels && !ui.screenLevels.classList.contains("hidden")
+        const inHome = ui.screenHome && !ui.screenHome.classList.contains("hidden")
+        const root = inSettings
+          ? ui.settingsModal
+          : inPause
+            ? ui.pauseOverlay
+          : inLevels
+            ? ui.screenLevels.querySelector(".levels") || ui.screenLevels
+            : inHome
+              ? ui.screenHome.querySelector(".home-buttons") || ui.screenHome
+              : null
+        if (root) {
+          kbNavActive = true
+          moveFocusSpatial(root, navDir.x, navDir.y)
+          e.preventDefault()
+          return
+        }
+      }
+
+      if (e.code === "KeyE" || e.key === "e" || e.key === "E") {
+        const inSettings = ui.settingsModal && !ui.settingsModal.classList.contains("hidden")
+        const inPause = ui.pauseOverlay && !ui.pauseOverlay.classList.contains("hidden")
+        const inLevels = ui.screenLevels && !ui.screenLevels.classList.contains("hidden")
+        const inHome = ui.screenHome && !ui.screenHome.classList.contains("hidden")
+        const root = inSettings
+          ? ui.settingsModal
+          : inPause
+            ? ui.pauseOverlay
+          : inLevels
+            ? ui.screenLevels.querySelector(".levels") || ui.screenLevels
+            : inHome
+              ? ui.screenHome.querySelector(".home-buttons") || ui.screenHome
+              : null
+        if (root) {
+          const cur = document.activeElement
+          const btn = cur && cur.tagName === "BUTTON" && root.contains(cur) ? cur : kbFocusEl && root.contains(kbFocusEl) ? kbFocusEl : null
+          if (btn && !btn.disabled) btn.click()
+          clearKbFocus()
+          kbNavActive = false
+          e.preventDefault()
+          return
+        }
+      }
+
       if (e.key === "Escape") {
         if (ui.devtoolsModal && !ui.devtoolsModal.classList.contains("hidden")) {
           closeDevtools()
@@ -8353,12 +8764,18 @@
           return
         }
         if (ui.settingsModal && !ui.settingsModal.classList.contains("hidden")) {
-          closeSettings()
+          if (settingsPage !== "main") setSettingsPage("main")
+          else closeSettings()
           e.preventDefault()
           return
         }
         if (hintState && ui.hintPanel && !ui.hintPanel.classList.contains("hidden")) {
           hintPrev()
+          e.preventDefault()
+          return
+        }
+        if (ui.screenLevels && !ui.screenLevels.classList.contains("hidden")) {
+          if (ui.btnLevelsBack) ui.btnLevelsBack.click()
           e.preventDefault()
           return
         }
@@ -8497,6 +8914,8 @@
             if (activeState.notes[i]) continue
             const nn = legal[i] || 0
             if (!nn) continue
+            const ps = activeState.shadowNotes ? activeState.shadowNotes[i] || 0 : 0
+            const ns = ps | nn
             activeState.undo.push({
               idx: i,
               pv: activeState.grid[i],
@@ -8505,12 +8924,15 @@
               nn,
               pe: activeState.errors[i],
               ne: activeState.errors[i],
+              ps,
+              ns,
             })
             activeState.notes[i] = nn
+            if (activeState.shadowNotes) activeState.shadowNotes[i] = ns
             changed++
           }
           if (changed) {
-            activeState.undo.push({ idx: 99, pv: changed, nv: 0, pn: 0, nn: 0, pe: 0, ne: 0 })
+            activeState.undo.push({ idx: 99, pv: changed, nv: 0, pn: 0, nn: 0, pe: 0, ne: 0, ps: 0, ns: 0 })
             if (activeState.undo.length > 200) activeState.undo.splice(0, activeState.undo.length - 200)
             updateActions()
             renderBoard()
@@ -8529,8 +8951,21 @@
         return
       }
       if (h.type === "eliminate") {
+        let hasAnyNotes = false
+        if (activeState.notes) {
+          for (let i = 0; i < 81; i++) {
+            if (activeState.notes[i]) {
+              hasAnyNotes = true
+              break
+            }
+          }
+        }
+        if (!hasAnyNotes) {
+          toast("当前没有笔记：本提示仅标记可排除候选")
+          clearHint()
+          return
+        }
         const grid = activeState.grid
-        const legal = buildLegalCandidateMasks(activeState.grid, activeState.givens)
         let changed = 0
         const entries = []
         if (h.elimList && h.elimList.length) {
@@ -8544,12 +8979,12 @@
           if (!rm) continue
           if (activeState.givens[i]) continue
           if (grid[i] !== 0) continue
-          let pn = activeState.notes[i] || 0
-          if (!pn) pn = legal[i] || 0
+          const pn = activeState.notes ? activeState.notes[i] || 0 : 0
           if (!pn) continue
-          const base = computeCandidateMask(grid, i) & pn
-          const nn = base & ~rm
-          if (nn === base) continue
+          const nn = pn & ~rm
+          if (nn === pn) continue
+          const ps = activeState.shadowNotes ? activeState.shadowNotes[i] || 0 : 0
+          const ns = ps & ~rm
           activeState.undo.push({
             idx: i,
             pv: grid[i],
@@ -8558,12 +8993,15 @@
             nn,
             pe: activeState.errors[i],
             ne: activeState.errors[i],
+            ps,
+            ns,
           })
           activeState.notes[i] = nn
+          if (activeState.shadowNotes) activeState.shadowNotes[i] = ns
           changed++
         }
         if (changed) {
-          activeState.undo.push({ idx: 99, pv: changed, nv: 0, pn: 0, nn: 0, pe: 0, ne: 0 })
+          activeState.undo.push({ idx: 99, pv: changed, nv: 0, pn: 0, nn: 0, pe: 0, ne: 0, ps: 0, ns: 0 })
           if (activeState.undo.length > 200) activeState.undo.splice(0, activeState.undo.length - 200)
           activeState.suppressNotesPrompt = true
           updateActions()
@@ -8585,7 +9023,35 @@
     ui.btnSettingsClose.addEventListener("click", closeSettings)
     ui.modalBackdrop.addEventListener("click", closeSettings)
     if (ui.btnSettingsBack) ui.btnSettingsBack.addEventListener("click", () => setSettingsPage("main"))
+    if (ui.btnHighlightOpen) ui.btnHighlightOpen.addEventListener("click", () => setSettingsPage("highlight"))
     if (ui.btnThemeOpen) ui.btnThemeOpen.addEventListener("click", () => setSettingsPage("theme"))
+    if (ui.btnShareOpen) ui.btnShareOpen.addEventListener("click", () => setSettingsPage("share"))
+    if (ui.btnDevOpen) ui.btnDevOpen.addEventListener("click", () => setSettingsPage("dev"))
+
+    const installSettingRowToggles = () => {
+      if (!ui.settingsModal) return
+      const rows = Array.from(ui.settingsModal.querySelectorAll(".setting-row"))
+      for (const row of rows) {
+        const input = row.querySelector('input[type="checkbox"]')
+        if (!input || !input.id) continue
+        row.dataset.kbToggle = input.id
+        row.tabIndex = 0
+        row.addEventListener("click", (ev) => {
+          if (ev.target && ev.target.closest && (ev.target.closest("input") || ev.target.closest("label.switch"))) return
+          input.checked = !input.checked
+          input.dispatchEvent(new Event("change", { bubbles: true }))
+        })
+        row.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " " || ev.code === "KeyE" || ev.key === "e" || ev.key === "E") {
+            ev.preventDefault()
+            ev.stopPropagation()
+            input.checked = !input.checked
+            input.dispatchEvent(new Event("change", { bubbles: true }))
+          }
+        })
+      }
+    }
+    installSettingRowToggles()
 
     const bindSetting = (el, key) => {
       el.addEventListener("change", () => {
@@ -8642,6 +9108,8 @@
     bindThemeButton(ui.btnPaletteGreen, "palette", "green")
     bindThemeButton(ui.btnPaletteBlue, "palette", "blue")
     bindThemeButton(ui.btnPaletteOrange, "palette", "orange")
+    bindThemeButton(ui.btnPaletteWhite, "palette", "white")
+    bindThemeButton(ui.btnPaletteBlack, "palette", "black")
     if (ui.settingDevmode) {
       ui.settingDevmode.addEventListener("change", () => {
         settings.devMode = !!ui.settingDevmode.checked
@@ -9044,13 +9512,103 @@
       scrollLevelsToIndex(idx % chapterSize)
     })
 
+    let lastEAt = 0
     document.addEventListener("keydown", (e) => {
+      if (e.defaultPrevented) return
       if (!activeState) return
       if (activeState.paused) return
       if (!ui.settingsModal.classList.contains("hidden")) return
       if (!ui.screenGame || ui.screenGame.classList.contains("hidden")) return
       const t = e.target
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      if (ui.traceDrawer && !ui.traceDrawer.classList.contains("hidden")) return
+
+      const hintOpen = !!(ui.hintPanel && !ui.hintPanel.classList.contains("hidden") && hintState && hintState.hint)
+      if (
+        hintOpen &&
+        (e.code === "KeyW" ||
+          e.code === "KeyA" ||
+          e.code === "KeyS" ||
+          e.code === "KeyD" ||
+          e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight")
+      ) {
+        e.preventDefault()
+        const goPrev = e.code === "KeyW" || e.code === "KeyA" || e.key === "ArrowUp" || e.key === "ArrowLeft"
+        if (goPrev) {
+          if (hintState.step !== 1) {
+            hintState.step = 1
+            renderHint()
+          }
+          return
+        }
+        if (hintState.step !== 2) {
+          hintState.step = 2
+          renderHint()
+        }
+        return
+      }
+
+      if (e.code === "KeyR") {
+        e.preventDefault()
+        if (ui.btnNote) ui.btnNote.click()
+        return
+      }
+      if (e.code === "KeyZ") {
+        e.preventDefault()
+        if (ui.btnUndo) ui.btnUndo.click()
+        return
+      }
+      if (e.code === "KeyX") {
+        e.preventDefault()
+        if (ui.btnErase) ui.btnErase.click()
+        return
+      }
+      if (e.code === "KeyE" || e.key === "e" || e.key === "E") {
+        if (activeState.lockedDigit) {
+          e.preventDefault()
+          activeState.lockedDigit = 0
+          persistActive()
+          refreshHighlights()
+          updatePad()
+          lastEAt = 0
+          return
+        }
+        const now = Date.now()
+        if (now - lastEAt < 260) {
+          e.preventDefault()
+          lastEAt = 0
+          if (activeState.selected != null && activeState.selected >= 0) onCellDoubleClick(activeState.selected)
+          return
+        }
+        lastEAt = now
+      }
+      if (
+        e.code === "KeyW" ||
+        e.code === "KeyA" ||
+        e.code === "KeyS" ||
+        e.code === "KeyD" ||
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown" ||
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight"
+      ) {
+        e.preventDefault()
+        let idx = activeState.selected ?? -1
+        if (idx < 0) idx = 0
+        let r = (idx / 9) | 0
+        let c = idx % 9
+        if (e.code === "KeyW" || e.key === "ArrowUp") r = Math.max(0, r - 1)
+        else if (e.code === "KeyS" || e.key === "ArrowDown") r = Math.min(8, r + 1)
+        else if (e.code === "KeyA" || e.key === "ArrowLeft") c = Math.max(0, c - 1)
+        else if (e.code === "KeyD" || e.key === "ArrowRight") c = Math.min(8, c + 1)
+        activeState.selected = r * 9 + c
+        refreshHighlights()
+        updatePad()
+        return
+      }
 
       if (e.key >= "1" && e.key <= "9") {
         e.preventDefault()

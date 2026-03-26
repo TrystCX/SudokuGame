@@ -30,6 +30,9 @@
         <button id="btn-levels-back" class="icon-btn levels-back" type="button" aria-label="返回">
           <span class="icon">←</span>
         </button>
+        <button id="btn-home" class="icon-btn levels-home" type="button" aria-label="主页">
+          <span class="icon" style="font-size: calc(14px * var(--font-scale)); font-weight: bold;">主页</span>
+        </button>
         <button id="btn-settings-3" class="icon-btn levels-settings" type="button" aria-label="设置">
           <span class="icon">⚙</span>
         </button>
@@ -162,6 +165,53 @@
                 </label>
               </div>
               <div class="setting-row">
+                <div class="setting-label">双击自动填入唯一笔记</div>
+                <label class="switch">
+                  <input id="setting-double-click-fill-note" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">选数优先</div>
+                <label class="switch">
+                  <input id="setting-number-first" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">显示强制推理链</div>
+                <label class="switch">
+                  <input id="setting-show-forcing" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="divider"></div>
+
+              <button id="btn-highlight-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">高亮突出设置</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+              <button id="btn-theme-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">主题</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+              <button id="btn-archive-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">存档设置</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+              <button id="btn-share-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">分享局面</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+              <button id="btn-dev-open" class="setting-nav hidden" type="button">
+                <div class="setting-nav-label">开发者</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+            </div>
+
+            <div id="settings-page-highlight" class="settings-page hidden">
+              <div class="setting-row">
                 <div class="setting-label">突出显示区域</div>
                 <label class="switch">
                   <input id="setting-highlight-region" type="checkbox" />
@@ -190,53 +240,11 @@
                 </label>
               </div>
               <div class="setting-row">
-                <div class="setting-label">双击自动填入唯一笔记</div>
-                <label class="switch">
-                  <input id="setting-double-click-fill-note" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <div class="setting-row">
                 <div class="setting-label">高亮唯一数</div>
                 <label class="switch">
                   <input id="setting-highlight-unique" type="checkbox" />
                   <span class="slider"></span>
                 </label>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">选数优先</div>
-                <label class="switch">
-                  <input id="setting-number-first" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">显示强制推理提示</div>
-                <label class="switch">
-                  <input id="setting-show-forcing" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-
-              <div class="divider"></div>
-
-              <div class="setting-row setting-buttons">
-                <button id="btn-export-game" class="ghost-btn" type="button">导出分享码</button>
-                <button id="btn-import-game" class="ghost-btn" type="button">导入分享码</button>
-                <button id="btn-theme-open" class="ghost-btn" type="button">主题</button>
-              </div>
-              <div class="setting-row">
-                <button id="btn-archive-open" class="ghost-btn" type="button">存档设置</button>
-              </div>
-              <div id="setting-row-devmode" class="setting-row hidden">
-                <div class="setting-label">开发模式</div>
-                <label class="switch">
-                  <input id="setting-devmode" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <div id="setting-row-devtools" class="setting-row hidden">
-                <button id="btn-devtools-open" class="ghost-btn" type="button">开发工具</button>
               </div>
             </div>
 
@@ -262,7 +270,31 @@
                   <button id="btn-palette-green" class="ghost-btn setting-chip" type="button">绿色</button>
                   <button id="btn-palette-blue" class="ghost-btn setting-chip" type="button">蓝色</button>
                   <button id="btn-palette-orange" class="ghost-btn setting-chip" type="button">橙色</button>
+                  <button id="btn-palette-white" class="ghost-btn setting-chip" type="button">白色</button>
+                  <button id="btn-palette-black" class="ghost-btn setting-chip" type="button">黑色</button>
                 </div>
+              </div>
+            </div>
+
+            <div id="settings-page-share" class="settings-page hidden">
+              <div class="setting-row">
+                <button id="btn-export-game" class="ghost-btn" type="button" style="width:100%">导出分享码</button>
+              </div>
+              <div class="setting-row">
+                <button id="btn-import-game" class="ghost-btn" type="button" style="width:100%">导入分享码</button>
+              </div>
+            </div>
+
+            <div id="settings-page-dev" class="settings-page hidden">
+              <div id="setting-row-devmode" class="setting-row">
+                <div class="setting-label">开发模式</div>
+                <label class="switch">
+                  <input id="setting-devmode" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div id="setting-row-devtools" class="setting-row">
+                <button id="btn-devtools-open" class="ghost-btn" type="button" style="width:100%">开发工具</button>
               </div>
             </div>
           </div>
