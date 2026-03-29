@@ -30,6 +30,9 @@
         <button id="btn-levels-back" class="icon-btn levels-back" type="button" aria-label="返回">
           <span class="icon">←</span>
         </button>
+        <button id="btn-home" class="icon-btn levels-home" type="button" aria-label="主页">
+          <span class="icon" style="font-size: calc(14px * var(--font-scale)); font-weight: bold;">主页</span>
+        </button>
         <button id="btn-settings-3" class="icon-btn levels-settings" type="button" aria-label="设置">
           <span class="icon">⚙</span>
         </button>
@@ -80,8 +83,52 @@
               <button id="btn-hint" class="action-btn" type="button">提示</button>
               <button id="btn-note" class="action-btn" type="button">笔记</button>
             </div>
+            <div id="preview-actions" class="preview-actions hidden" aria-label="推演操作">
+              <button id="btn-preview-undo" class="action-btn" type="button">撤回一步</button>
+              <button id="btn-preview-apply" class="action-btn" type="button">应用推演</button>
+              <div class="preview-spacer" aria-hidden="true"></div>
+              <div class="preview-spacer" aria-hidden="true"></div>
+            </div>
           </div>
         </main>
+
+        <div id="hint-panel" class="hint-panel hidden">
+          <div class="hint-card">
+            <div class="hint-head">
+              <div id="hint-badge" class="hint-badge"></div>
+              <button id="btn-hint-close" class="icon-btn" type="button" aria-label="关闭">
+                <span class="icon">✕</span>
+              </button>
+            </div>
+            <div id="hint-message" class="hint-message"></div>
+            <div class="hint-actions">
+              <button id="btn-hint-prev" class="ghost-btn hidden" type="button">上一步</button>
+              <button id="btn-hint-next" class="ghost-btn" type="button">下一步</button>
+              <button id="btn-hint-trace" class="ghost-btn hidden" type="button">推演</button>
+              <button id="btn-hint-apply" class="primary-btn" type="button">填入</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="trace-backdrop" class="modal-backdrop hidden"></div>
+        <div id="trace-drawer" class="drawer hidden" role="dialog" aria-modal="true">
+          <div class="drawer-handle"></div>
+          <div class="drawer-head">
+            <div class="drawer-title">推演过程</div>
+            <select id="trace-branch" class="drawer-select"></select>
+            <button id="btn-trace-close" class="icon-btn" type="button" aria-label="关闭">
+              <span class="icon">✕</span>
+            </button>
+          </div>
+          <div class="drawer-body">
+            <div id="trace-list" class="trace-list"></div>
+          </div>
+          <div class="drawer-actions">
+            <button id="btn-trace-prev" class="ghost-btn" type="button">上一条</button>
+            <button id="btn-trace-next" class="ghost-btn" type="button">下一条</button>
+            <button id="btn-trace-end" class="primary-btn" type="button">跳到结论</button>
+          </div>
+        </div>
 
         <div id="pause-overlay" class="overlay hidden" role="dialog" aria-modal="true">
           <div class="overlay-card">
@@ -97,88 +144,302 @@
       <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true">
         <div class="modal-card">
           <div class="modal-header">
-            <div class="modal-title">设置</div>
+            <div class="modal-header-left">
+              <button id="btn-settings-back" class="icon-btn hidden" type="button" aria-label="返回">
+                <span class="icon">←</span>
+              </button>
+              <div id="settings-title" class="modal-title">设置</div>
+            </div>
             <button id="btn-settings-close" class="icon-btn" type="button" aria-label="关闭">
               <span class="icon">✕</span>
             </button>
           </div>
           <div class="modal-body">
-            <div class="setting-row">
-              <div class="setting-label">音效</div>
-              <label class="switch">
-                <input id="setting-sound" type="checkbox" />
-                <span class="slider"></span>
-              </label>
+            <div id="settings-page-main" class="settings-page">
+              <div class="setting-row">
+                <div class="setting-label">音效</div>
+                <label class="switch">
+                  <input id="setting-sound" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">双击自动填入唯一笔记</div>
+                <label class="switch">
+                  <input id="setting-double-click-fill-note" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">选数优先</div>
+                <label class="switch">
+                  <input id="setting-number-first" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">显示强制推理链</div>
+                <label class="switch">
+                  <input id="setting-show-forcing" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="divider"></div>
+
+              <button id="btn-highlight-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">高亮突出设置</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+              <button id="btn-theme-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">主题</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+              <button id="btn-archive-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">存档设置</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+              <button id="btn-share-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">分享局面</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+              <button id="btn-hotkeys-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">键盘快捷键</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+              <button id="btn-dev-open" class="setting-nav hidden" type="button">
+                <div class="setting-nav-label">开发者</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
             </div>
-            <div class="setting-row">
-              <div class="setting-label">界面亮度</div>
-              <div style="display:flex; align-items:center; gap:10px">
-                <input id="setting-brightness" type="range" min="70" max="110" step="1" />
-                <div id="setting-brightness-value" class="pill">100%</div>
+
+            <div id="settings-page-highlight" class="settings-page hidden">
+              <div class="setting-row">
+                <div class="setting-label">突出显示区域</div>
+                <label class="switch">
+                  <input id="setting-highlight-region" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">突出相同数字</div>
+                <label class="switch">
+                  <input id="setting-highlight-same" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">突出相同笔记</div>
+                <label class="switch">
+                  <input id="setting-highlight-same-notes" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div id="setting-row-highlight-same-notes-mode" class="setting-row">
+                <div class="setting-label">突出相同笔记：数字</div>
+                <label class="switch">
+                  <input id="setting-highlight-same-notes-digit" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">高亮唯一数</div>
+                <label class="switch">
+                  <input id="setting-highlight-unique" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
               </div>
             </div>
-            <div class="setting-row">
-              <div class="setting-label">突出显示区域</div>
-              <label class="switch">
-                <input id="setting-highlight-region" type="checkbox" />
-                <span class="slider"></span>
-              </label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">突出相同数字</div>
-              <label class="switch">
-                <input id="setting-highlight-same" type="checkbox" />
-                <span class="slider"></span>
-              </label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">突出相同笔记</div>
-              <label class="switch">
-                <input id="setting-highlight-same-notes" type="checkbox" />
-                <span class="slider"></span>
-              </label>
-            </div>
-            <div id="setting-row-highlight-same-notes-mode" class="setting-row">
-              <div class="setting-label">突出相同笔记：数字</div>
-              <label class="switch">
-                <input id="setting-highlight-same-notes-digit" type="checkbox" />
-                <span class="slider"></span>
-              </label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">双击自动填入唯一笔记</div>
-              <label class="switch">
-                <input id="setting-double-click-fill-note" type="checkbox" />
-                <span class="slider"></span>
-              </label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">高亮唯一数</div>
-              <label class="switch">
-                <input id="setting-highlight-unique" type="checkbox" />
-                <span class="slider"></span>
-              </label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">选数优先</div>
-              <label class="switch">
-                <input id="setting-number-first" type="checkbox" />
-                <span class="slider"></span>
-              </label>
+
+            <div id="settings-page-theme" class="settings-page hidden">
+              <div class="setting-row">
+                <div class="setting-label">界面亮度</div>
+                <div style="display:flex; align-items:center; gap:10px">
+                  <input id="setting-brightness" type="range" min="70" max="110" step="1" />
+                  <div id="setting-brightness-value" class="pill">100%</div>
+                </div>
+              </div>
+              <div class="setting-row" style="align-items:flex-start">
+                <div class="setting-label">字体大小</div>
+                <div class="setting-seg">
+                  <button id="btn-font-s" class="ghost-btn setting-chip" type="button">小</button>
+                  <button id="btn-font-m" class="ghost-btn setting-chip" type="button">中</button>
+                  <button id="btn-font-l" class="ghost-btn setting-chip" type="button">大</button>
+                </div>
+              </div>
+              <div class="setting-row" style="align-items:flex-start">
+                <div class="setting-label">预设配色</div>
+                <div class="setting-seg">
+                  <button id="btn-palette-green" class="ghost-btn setting-chip" type="button">绿色</button>
+                  <button id="btn-palette-blue" class="ghost-btn setting-chip" type="button">蓝色</button>
+                  <button id="btn-palette-orange" class="ghost-btn setting-chip" type="button">橙色</button>
+                  <button id="btn-palette-white" class="ghost-btn setting-chip" type="button">白色</button>
+                  <button id="btn-palette-black" class="ghost-btn setting-chip" type="button">黑色</button>
+                </div>
+              </div>
             </div>
 
-            <div class="divider"></div>
+            <div id="settings-page-hotkeys" class="settings-page hidden">
+              <div class="hotkeys-card">
+                <div class="hotkeys-title">导航</div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys">
+                    <span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span>
+                    <span class="keycap">↑</span><span class="keycap">↓</span><span class="keycap">←</span><span class="keycap">→</span>
+                  </div>
+                  <div class="hotkey-desc">提示面板/推演抽屉打开时：切换上一步/下一步</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">Q</span></div>
+                  <div class="hotkey-desc">提示面板：上一步</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">E</span></div>
+                  <div class="hotkey-desc">提示面板：下一步</div>
+                </div>
+              </div>
 
-            <div class="setting-row">
-              <button id="btn-export-game" class="ghost-btn" type="button">导出分享码</button>
-              <button id="btn-import-game" class="ghost-btn" type="button">导入分享码</button>
+              <div class="hotkeys-card">
+                <div class="hotkeys-title">操作</div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">F</span></div>
+                  <div class="hotkey-desc">提示：打开提示；提示面板打开时继续“下一步/填入”</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">E</span></div>
+                  <div class="hotkey-desc">确认 / 取消选中</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">Esc</span></div>
+                  <div class="hotkey-desc">返回 / 关闭</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">Z</span></div>
+                  <div class="hotkey-desc">撤回</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">X</span></div>
+                  <div class="hotkey-desc">擦除</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">R</span></div>
+                  <div class="hotkey-desc">笔记模式</div>
+                </div>
+              </div>
             </div>
-            <div class="setting-row">
-              <button id="btn-archive-open" class="ghost-btn" type="button">存档设置</button>
+
+            <div id="settings-page-share" class="settings-page hidden">
+              <div class="setting-row">
+                <button id="btn-export-game" class="ghost-btn" type="button" style="width:100%">导出分享码</button>
+              </div>
+              <div class="setting-row">
+                <button id="btn-import-game" class="ghost-btn" type="button" style="width:100%">导入分享码</button>
+              </div>
+            </div>
+
+            <div id="settings-page-dev" class="settings-page hidden">
+              <div id="setting-row-devmode" class="setting-row">
+                <div class="setting-label">开发模式</div>
+                <label class="switch">
+                  <input id="setting-devmode" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div id="setting-row-devtools" class="setting-row">
+                <button id="btn-devtools-open" class="ghost-btn" type="button" style="width:100%">开发工具</button>
+              </div>
             </div>
           </div>
         </div>
         <div id="modal-backdrop" class="modal-backdrop"></div>
+      </div>
+
+      <div id="devtools-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-card">
+          <div class="modal-header">
+            <div class="modal-title">开发工具</div>
+            <button id="btn-devtools-close" class="icon-btn" type="button" aria-label="关闭">
+              <span class="icon">✕</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="setting-row" style="align-items:flex-start">
+              <div class="setting-label">盘面（81位，0/./数字）</div>
+              <textarea id="dev-grid" class="dev-textarea" rows="4" spellcheck="false"></textarea>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">把非零当作给定</div>
+              <label class="switch">
+                <input id="dev-as-givens" type="checkbox" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">自动生成笔记</div>
+              <label class="switch">
+                <input id="dev-auto-notes" type="checkbox" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">期望技巧</div>
+              <select id="dev-tech" class="dev-select">
+                <option value="">自动</option>
+                <option value="bug">BUG</option>
+                <option value="ape">APE</option>
+                <option value="ate">ATE</option>
+                <option value="wxyzwing">WXYZ-Wing</option>
+                <option value="vwxyzwing">VWXYZ-Wing</option>
+                <option value="xcycle">X-Cycle</option>
+                <option value="xycycle">XY-Cycle</option>
+                <option value="nishio">Nishio</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <button id="btn-dev-load" class="primary-btn" type="button">加载到棋盘</button>
+              <button id="btn-dev-run-hint" class="ghost-btn" type="button">运行提示</button>
+            </div>
+            <div class="setting-row">
+              <button id="btn-dev-find-example" class="ghost-btn" type="button">从题库搜索示例</button>
+              <button id="btn-dev-mock" class="ghost-btn" type="button">生成虚构演示</button>
+            </div>
+            <div class="setting-row" style="align-items:flex-start">
+              <div class="setting-label">输出</div>
+              <pre id="dev-output" class="dev-output"></pre>
+            </div>
+            <div class="divider"></div>
+            <div class="setting-row">
+              <button id="btn-theme-tuner-open" class="ghost-btn" type="button">自定义调色</button>
+            </div>
+          </div>
+        </div>
+        <div id="devtools-backdrop" class="modal-backdrop"></div>
+      </div>
+
+      <div id="theme-tuner-modal" class="theme-tuner hidden" role="dialog" aria-label="自定义调色">
+        <div class="theme-tuner-card">
+          <div class="theme-tuner-head" id="theme-tuner-head">
+            <div class="theme-tuner-title">自定义调色</div>
+            <button id="btn-theme-tuner-close" class="icon-btn" type="button" aria-label="关闭">
+              <span class="icon">✕</span>
+            </button>
+          </div>
+          <div class="theme-tuner-body">
+            <div class="setting-row">
+              <div class="setting-label">启用</div>
+              <label class="switch">
+                <input id="setting-custom-theme" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <button id="btn-theme-tuner-reset" class="ghost-btn" type="button">重置全部</button>
+              <button id="btn-theme-tuner-export" class="ghost-btn" type="button">导出配置</button>
+              <button id="btn-theme-tuner-import" class="ghost-btn" type="button">导入配置</button>
+            </div>
+            <div id="theme-tuner-list" class="theme-tuner-list"></div>
+          </div>
+        </div>
       </div>
 
       <div id="archive-modal" class="modal hidden" role="dialog" aria-modal="true">
@@ -206,4 +467,3 @@
     </div>
   </body>
 </html>
-
