@@ -6573,9 +6573,9 @@
   }
 
   const hintDifficultyLabel = (key) => {
-    if (key === "intro") return "入门"
-    if (key === "easy") return "简单"
-    if (key === "medium") return "中等"
+    if (key === "intro") return "简单"
+    if (key === "easy") return "中等"
+    if (key === "medium") return "高阶"
     if (key === "hard") return "困难"
     return "极限"
   }
@@ -6646,7 +6646,9 @@
 
   const hintBadgeText = (h) => {
     const k = hintDifficultyKey(h)
-    return `${hintDifficultyLabel(k)} · ${hintTechLabel(h)}`
+    const s = hintDifficultyScore(h)
+    const coef = Number.isFinite(s) ? s.toFixed(1) : "0.0"
+    return `${hintDifficultyLabel(k)}:${coef} · ${hintTechLabel(h)}`
   }
 
   const cellCenterInBoard = (idx) => {
@@ -7993,6 +7995,54 @@
       const cStr = cols.map((c) => c + 1).join("、")
       
       if (step === 1) {
+        const src = h.sourceCells || []
+        if (src.length === 9 && rows.length === 3 && cols.length === 3) {
+          const counts = isRow
+            ? rows.map((r) => src.filter((i) => ((i / 9) | 0) === r).length)
+            : cols.map((c) => src.filter((i) => (i % 9) === c).length)
+          if (counts[0] === 3 && counts[1] === 3 && counts[2] === 3) {
+            if (isRow)
+              return `在第 ${rStr} 行里，数字 ${h.digit} 在同三列都有三个候选格；构成了一个矩形剑鱼结构。数字 ${h.digit} 必然同时分布在这三列与这三行中。`
+            return `在第 ${cStr} 列里，数字 ${h.digit} 在同三行都有三个候选格；构成了一个矩形剑鱼结构。数字 ${h.digit} 必然同时分布在这三列与这三行中。`
+          }
+        }
+        if (src.length === 6 && rows.length === 3 && cols.length === 3) {
+          const counts = isRow
+            ? rows.map((r) => src.filter((i) => ((i / 9) | 0) === r).length)
+            : cols.map((c) => src.filter((i) => (i % 9) === c).length)
+          if (counts[0] === 2 && counts[1] === 2 && counts[2] === 2) {
+            const srcSet = new Set(src)
+            const left = isRow ? rows : cols
+            const right = isRow ? cols : rows
+            const idxFor = (l, r) => (isRow ? l * 9 + r : r * 9 + l)
+            const perms = [
+              [0, 1, 2],
+              [0, 2, 1],
+              [1, 0, 2],
+              [1, 2, 0],
+              [2, 0, 1],
+              [2, 1, 0],
+            ]
+            let matchCount = 0
+            for (const p of perms) {
+              let ok = true
+              for (let i = 0; i < 3; i++) {
+                const idx = idxFor(left[i], right[p[i]])
+                if (!srcSet.has(idx)) {
+                  ok = false
+                  break
+                }
+              }
+              if (ok) matchCount++
+              if (matchCount > 2) break
+            }
+            if (matchCount === 2) {
+              if (isRow)
+                return `在第 ${rStr} 行里，数字 ${h.digit} 都只有两个候选格；这六个候选格构成一个矩形剑鱼结构。数字 ${h.digit} 有两种分布情况。`
+              return `在第 ${cStr} 列里，数字 ${h.digit} 都只有两个候选格；这六个候选格构成一个矩形剑鱼结构。数字 ${h.digit} 有两种分布情况。`
+            }
+          }
+        }
         if (isRow) {
           return `在第 ${rStr} 行中，数字 ${h.digit} 被锁定在一个剑鱼（Swordfish）结构中。`
         }
@@ -8000,9 +8050,9 @@
       }
       
       if (isRow) {
-        return `因此，在第 ${cStr} 列的其他位置，候选 ${h.digit} 都可以被排除。`
+        return `因此，在第 ${cStr} 列的其他行，候选 ${h.digit} 都可以被排除。`
       }
-      return `因此，在第 ${rStr} 行的其他位置，候选 ${h.digit} 都可以被排除。`
+      return `因此，在第 ${rStr} 行的其他列，候选 ${h.digit} 都可以被排除。`
     }
     if (h.tech === "jellyfish_row" || h.tech === "jellyfish_col") {
       if (step === 1) return `这里形成了 水母：数字 ${h.digit} 被限制在 4 行与 4 列的交叉范围内。`
@@ -8073,6 +8123,58 @@
             s.classList.add("hint-temp-b")
             s.classList.add("on")
             s.textContent = String(d)
+          }
+        }
+      }
+    }
+    if ((step === 1 || step === 2) && (h.tech === "swordfish_row" || h.tech === "swordfish_col")) {
+      const d = h.digit || 0
+      const rows = h.rows || []
+      const cols = h.cols || []
+      const src = h.sourceCells || []
+      if (d && rows.length === 3 && cols.length === 3 && src.length) {
+        const isRow = h.tech.endsWith("_row")
+        const left = isRow ? rows : cols
+        const right = isRow ? cols : rows
+        const idxFor = (l, r) => (isRow ? l * 9 + r : r * 9 + l)
+        const srcSet = new Set(src)
+        const perms = [
+          [0, 1, 2],
+          [0, 2, 1],
+          [1, 0, 2],
+          [1, 2, 0],
+          [2, 0, 1],
+          [2, 1, 0],
+        ]
+        const matchings = []
+        for (const p of perms) {
+          const cells = []
+          let ok = true
+          for (let i = 0; i < 3; i++) {
+            const idx = idxFor(left[i], right[p[i]])
+            if (!srcSet.has(idx)) {
+              ok = false
+              break
+            }
+            cells.push(idx)
+          }
+          if (ok) matchings.push(cells)
+        }
+        if (matchings.length === 2) {
+          const mark = (idx, cls) => {
+            const s = cellEls[idx]?.querySelector(`.notes span[data-n="${d}"]`)
+            if (!s) return
+            s.classList.add("hint-temp")
+            s.classList.add(cls)
+            s.classList.add("on")
+            s.textContent = String(d)
+          }
+          const a = new Set(matchings[0])
+          const b = new Set(matchings[1])
+          const all = new Set([...a, ...b])
+          for (const idx of all) {
+            const cls = a.has(idx) && b.has(idx) ? "hint-temp-c" : a.has(idx) ? "hint-temp-a" : "hint-temp-b"
+            mark(idx, cls)
           }
         }
       }

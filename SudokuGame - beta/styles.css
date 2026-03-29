@@ -149,9 +149,9 @@
   border-color:rgba(255, 255, 255, .10);
 }
 :root[data-palette="black"] .hint-badge.diff-intro{
-  color:rgba(233, 238, 245, .92);
-  background:var(--primary-soft);
-  border-color:var(--primary-border2);
+  color:rgba(233, 238, 245, .78);
+  background:rgba(72, 214, 140, .10);
+  border-color:rgba(72, 214, 140, .18);
 }
 :root[data-palette="black"] .hint-badge.diff-easy{
   color:rgba(233, 238, 245, .78);
@@ -927,9 +927,9 @@ button{color:inherit}
   white-space:nowrap;
 }
 .hint-badge.diff-intro{
-  color:var(--user);
-  background:var(--primary-soft);
-  border-color:var(--primary-border2);
+  color:rgba(10, 44, 20, .95);
+  background:rgba(34, 162, 98, .16);
+  border-color:rgba(34, 162, 98, .32);
 }
 .hint-badge.diff-easy{
   color:rgba(10, 26, 62, .95);
