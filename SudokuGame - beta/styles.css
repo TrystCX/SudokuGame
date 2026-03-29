@@ -579,6 +579,13 @@ button{color:inherit}
   box-shadow:0 0 0 2px rgba(255, 215, 0, .08);
   background:rgba(255, 215, 0, .04);
 }
+.board.hinting .cell.hint-leaf-switch{
+  opacity:1;
+  outline:3px solid rgba(214, 255, 77, .92);
+  outline-offset:-3px;
+  box-shadow:0 0 0 2px rgba(214, 255, 77, .12), 0 0 18px rgba(214, 255, 77, .16);
+  background:rgba(214, 255, 77, .04);
+}
 .board.hinting .cell.hint-bridge{
   opacity:1;
   background:rgba(255, 77, 77, .10);
@@ -724,6 +731,35 @@ button{color:inherit}
   pointer-events:none;
 }
 .cell .notes span.on{color:var(--note); opacity:1}
+.cell .notes span.hint-temp-a{
+  background:transparent;
+  color:rgba(255, 77, 77, .95);
+  font-weight:850;
+  box-shadow:none;
+  text-shadow:0 0 8px rgba(255, 77, 77, .20);
+}
+.cell .notes span.hint-temp-b{
+  background:transparent;
+  color:rgba(58, 160, 255, .95);
+  font-weight:850;
+  box-shadow:none;
+  text-shadow:0 0 8px rgba(58, 160, 255, .20);
+}
+.cell .notes span.hint-temp-n{
+  background:transparent;
+  color:var(--note);
+  font-weight:850;
+  box-shadow:none;
+  text-shadow:0 0 8px rgba(255, 215, 0, .16);
+  filter:brightness(1.08);
+}
+.cell .notes span.hint-temp-c{
+  background:transparent;
+  color:rgba(72, 214, 140, .95);
+  font-weight:850;
+  box-shadow:none;
+  text-shadow:0 0 8px rgba(72, 214, 140, .18);
+}
 .cell .notes span.same-note{color:var(--note-same); opacity:1; filter:brightness(1.05)}
 .cell:nth-child(9n+3),
 .cell:nth-child(9n+6){border-right:2px solid rgba(15, 22, 29, .36)}
@@ -1247,4 +1283,3 @@ input:checked + .slider:before{transform:translateX(20px)}
   .level-meta{gap:6px; row-gap:6px; font-size:calc(11px * var(--font-scale))}
   .tag{padding:2px 6px}
 }
-

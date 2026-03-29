@@ -405,6 +405,7 @@
     hintBadge: qs("#hint-badge"),
     hintMessage: qs("#hint-message"),
     btnHintClose: qs("#btn-hint-close"),
+    btnHintPrev: qs("#btn-hint-prev"),
     btnHintNext: qs("#btn-hint-next"),
     btnHintTrace: qs("#btn-hint-trace"),
     btnHintApply: qs("#btn-hint-apply"),
@@ -412,8 +413,6 @@
     traceDrawer: qs("#trace-drawer"),
     traceBranch: qs("#trace-branch"),
     btnTraceClose: qs("#btn-trace-close"),
-    btnTraceCompact: qs("#btn-trace-compact"),
-    btnTraceConflict: qs("#btn-trace-conflict"),
     traceList: qs("#trace-list"),
     btnTracePrev: qs("#btn-trace-prev"),
     btnTraceNext: qs("#btn-trace-next"),
@@ -1101,8 +1100,9 @@
     clearTraceHighlights()
     if (activeState) renderBoard()
     if (hintState && hintState.hint && ui.hintPanel && !ui.hintPanel.classList.contains("hidden")) {
-      if (hintState.step !== 2) {
-        hintState.step = 2
+      const last = hintStepCount(hintState.hint)
+      if (hintState.step !== last) {
+        hintState.step = last
         renderHint()
       }
     }
@@ -1210,10 +1210,6 @@
     const branches = hint?.traceBranches || []
     const b = branches[traceState.branchIndex] || null
     const tl = b?.timeline || []
-    const compact = !!traceState.compact
-    if (ui.btnTraceCompact) ui.btnTraceCompact.textContent = compact ? "详细" : "简洁"
-    const firstConflict = tl.findIndex((e) => e && e.kind === "conflict")
-    if (ui.btnTraceConflict) ui.btnTraceConflict.disabled = firstConflict < 0
     if (ui.traceBranch) {
       ui.traceBranch.innerHTML = ""
       for (let i = 0; i < branches.length; i++) {
@@ -1228,31 +1224,7 @@
     }
     if (ui.traceList) {
       ui.traceList.innerHTML = ""
-      let hiddenFill = 0
-      const shown = []
       for (let i = 0; i < tl.length; i++) {
-        const evt = tl[i]
-        if (compact && evt && evt.kind === "fill") {
-          hiddenFill++
-          continue
-        }
-        shown.push(i)
-      }
-      if (compact && hiddenFill) {
-        const info = document.createElement("div")
-        info.className = "trace-item wave"
-        const meta = document.createElement("div")
-        meta.className = "trace-meta"
-        meta.textContent = "简洁"
-        const text = document.createElement("div")
-        text.className = "trace-text"
-        text.textContent = `已隐藏 ${hiddenFill} 个自动填入步骤（切换到“详细”可查看）`
-        info.appendChild(meta)
-        info.appendChild(text)
-        ui.traceList.appendChild(info)
-      }
-      for (let k = 0; k < shown.length; k++) {
-        const i = shown[k]
         const evt = tl[i]
         const item = document.createElement("div")
         item.className = "trace-item" + (evt.kind === "wave" ? " wave" : "") + (i === traceState.stepIndex ? " active" : "")
@@ -1337,7 +1309,7 @@
     if (activeState && tracePrev && tracePrev.grid) activeState.traceBaseGrid = new Uint8Array(tracePrev.grid)
     const br = h.traceBranches[h.traceDefaultBranch || 0] || null
     const frames = computeTraceFrames(br?.timeline || [], tracePrev?.grid || null, tracePrev?.notes || null)
-    traceState = { hint: h, branchIndex: h.traceDefaultBranch || 0, stepIndex: 0, frames, compact: h.tech === "forcing_cell" && h.forcingKind === "nishio" }
+    traceState = { hint: h, branchIndex: h.traceDefaultBranch || 0, stepIndex: 0, frames }
     openTraceDrawer()
     renderTraceDrawer()
   }
@@ -2053,6 +2025,7 @@
   const onCellClick = (idx) => {
     if (!activeState || activeState.paused) return
     if (ui.traceDrawer && !ui.traceDrawer.classList.contains("hidden")) return
+    if (ui.hintPanel && !ui.hintPanel.classList.contains("hidden") && hintState && hintState.hint) return
     if (activeState.selected === idx) {
       activeState.selected = -1
       refreshHighlights()
@@ -2082,6 +2055,8 @@
 
   const onCellDoubleClick = (idx) => {
     if (!activeState || activeState.paused) return
+    if (ui.traceDrawer && !ui.traceDrawer.classList.contains("hidden")) return
+    if (ui.hintPanel && !ui.hintPanel.classList.contains("hidden") && hintState && hintState.hint) return
     if (!settings.doubleClickFillSingleNote) return
     if (activeState.givens[idx]) return
     if (activeState.grid[idx] !== 0) return
@@ -6476,8 +6451,17 @@
         const ts = el.querySelectorAll(".notes span.hint-temp")
         for (const s of ts) {
           s.classList.remove("hint-temp")
-          s.classList.remove("on")
-          s.textContent = ""
+          s.classList.remove("hint-temp-a")
+          s.classList.remove("hint-temp-b")
+          s.classList.remove("hint-temp-c")
+          s.classList.remove("hint-temp-n")
+          const digit = parseInt(s.getAttribute("data-n"), 10)
+          const cellIdx = parseInt(el.getAttribute("data-idx"), 10)
+          const m = (activeState && activeState.notes) ? activeState.notes[cellIdx] || 0 : 0
+          if (!(m & (1 << (digit - 1)))) {
+            s.classList.remove("on")
+            s.textContent = ""
+          }
         }
       }
     }
@@ -6488,6 +6472,12 @@
     if (unitType === "row") return `第 ${unitIndex + 1} 行`
     if (unitType === "col") return `第 ${unitIndex + 1} 列`
     return `第 ${unitIndex + 1} 宫`
+  }
+
+  const hintStepCount = (h) => {
+    const t = (h && h.tech) || ""
+    if (t === "wxyzwing" || t === "vwxyzwing") return 4
+    return 2
   }
 
   const hintDifficultyScore = (h) => {
@@ -6683,8 +6673,8 @@
       return { x, y, w: boardRect.width, h: boardRect.height, cw: rect.width, ch: rect.height }
     }
     const linkWidth = 1.4
-    const strongStroke = step === 2 ? "rgba(255, 77, 77, .72)" : "rgba(255, 77, 77, .46)"
-    const weakStroke = step === 2 ? "rgba(58, 160, 255, .72)" : "rgba(58, 160, 255, .46)"
+    const strongStroke = "rgba(255, 77, 77, .46)"
+    const weakStroke = "rgba(58, 160, 255, .46)"
     const isAdj = (aIdx, bIdx) => {
       const ar = (aIdx / 9) | 0
       const ac = aIdx % 9
@@ -6711,139 +6701,7 @@
         dots: [],
       }
     }
-    if (h.tech === "xywing") {
-      const p = h.pivotIdx ?? -1
-      const aIdx = h.wingAIdx ?? -1
-      const bIdx = h.wingBIdx ?? -1
-      if (p < 0 || aIdx < 0 || bIdx < 0) return
-      const p0 = cellCenterInBoard(p)
-      const a0 = cellCenterInBoard(aIdx)
-      const b0 = cellCenterInBoard(bIdx)
-      const w = p0.w || 1
-      const hh = p0.h || 1
-
-      const cw = Math.max(1, p0.cw || 1)
-      const ch = Math.max(1, p0.ch || 1)
-      const yOcc = new Map()
-      const xOcc = new Map()
-      const addOcc = (m, key, a, b) => {
-        const l = Math.min(a, b)
-        const r = Math.max(a, b)
-        const arr = m.get(key) || []
-        arr.push([l, r])
-        m.set(key, arr)
-      }
-      const overlapLen = (m, key, a, b) => {
-        const l = Math.min(a, b)
-        const r = Math.max(a, b)
-        const arr = m.get(key) || []
-        let s = 0
-        for (const [x1, x2] of arr) {
-          const il = Math.max(l, x1)
-          const ir = Math.min(r, x2)
-          if (ir > il) s += ir - il
-        }
-        return s
-      }
-      const ports = (idx) => {
-        const r = (idx / 9) | 0
-        const c = idx % 9
-        const x0 = c * cw
-        const x1 = (c + 1) * cw
-        const y0 = r * ch
-        const y1 = (r + 1) * ch
-        const xm = (x0 + x1) / 2
-        const ym = (y0 + y1) / 2
-        return [
-          { x: x0, y: ym },
-          { x: x1, y: ym },
-          { x: xm, y: y0 },
-          { x: xm, y: y1 },
-        ]
-      }
-      const yLines = []
-      const xLines = []
-      for (let k = 0; k <= 9; k++) {
-        yLines.push(k * ch)
-        xLines.push(k * cw)
-      }
-      const segPenalty = (ori, key, a, b) => {
-        const ov = overlapLen(ori === "h" ? yOcc : xOcc, key, a, b)
-        const use = (ori === "h" ? yOcc : xOcc).get(key)?.length || 0
-        return ov * 8.0 + use * 800
-      }
-      const scoreRoute = (pts) => {
-        let len = 0
-        let pen = 0
-        for (let i = 0; i < pts.length - 1; i++) {
-          const a = pts[i]
-          const b = pts[i + 1]
-          if (a.x === b.x) {
-            len += Math.abs(b.y - a.y)
-            pen += segPenalty("v", Math.round(a.x), a.y, b.y)
-          } else if (a.y === b.y) {
-            len += Math.abs(b.x - a.x)
-            pen += segPenalty("h", Math.round(a.y), a.x, b.x)
-          } else {
-            return Infinity
-          }
-        }
-        return len + pen
-      }
-      const commitRoute = (pts) => {
-        for (let i = 0; i < pts.length - 1; i++) {
-          const a = pts[i]
-          const b = pts[i + 1]
-          if (a.x === b.x) addOcc(xOcc, Math.round(a.x), a.y, b.y)
-          else if (a.y === b.y) addOcc(yOcc, Math.round(a.y), a.x, b.x)
-        }
-      }
-      const pickRoute = (fromIdx, toIdx) => {
-        const ps = ports(fromIdx)
-        const pt = ports(toIdx)
-        let best = null
-        let bestScore = Infinity
-        for (const s of ps) {
-          for (const t of pt) {
-            for (const y of yLines) {
-              const pts = [s, { x: s.x, y }, { x: t.x, y }, t]
-              const sc = scoreRoute(pts)
-              if (sc < bestScore) {
-                bestScore = sc
-                best = pts
-              }
-            }
-            for (const x of xLines) {
-              const pts = [s, { x, y: s.y }, { x, y: t.y }, t]
-              const sc = scoreRoute(pts)
-              if (sc < bestScore) {
-                bestScore = sc
-                best = pts
-              }
-            }
-          }
-        }
-        return best
-      }
-      const draw = (fromIdx, toIdx, stroke, width, dash, cls) => {
-        const p1 = cellCenterInBoard(fromIdx)
-        const p2 = cellCenterInBoard(toIdx)
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
-        line.setAttribute("x1", String((p1.x / w) * 100))
-        line.setAttribute("y1", String((p1.y / hh) * 100))
-        line.setAttribute("x2", String((p2.x / w) * 100))
-        line.setAttribute("y2", String((p2.y / hh) * 100))
-        line.setAttribute("stroke", stroke)
-        line.setAttribute("stroke-width", String(width))
-        line.setAttribute("stroke-linecap", "round")
-        if (cls) line.setAttribute("class", cls)
-        if (dash) line.setAttribute("stroke-dasharray", dash)
-        hintSvg.appendChild(line)
-      }
-      draw(p, aIdx, strongStroke, linkWidth, "", "wire-strong")
-      draw(p, bIdx, weakStroke, linkWidth, "2 2", "wire-weak")
-      return
-    }
+    if (h.tech === "xywing") return
     if (h.tech === "xyzwing") return
     if (h.tech === "wxyzwing" || h.tech === "vwxyzwing") {
       return
@@ -7298,7 +7156,7 @@
       rect.setAttribute("height", String(h2))
       rect.setAttribute("fill", "none")
       rect.setAttribute("stroke", "rgba(0, 210, 210, .55)")
-      rect.setAttribute("stroke-width", "1.2")
+      rect.setAttribute("stroke-width", "0.8")
       rect.setAttribute("rx", "0")
       rect.setAttribute("ry", "0")
       rect.classList.add("xw-rect")
@@ -7310,26 +7168,6 @@
       const cols = (h.cols || []).slice().sort((a, b) => a - b)
       if (rows.length !== 3 || cols.length !== 3) return
       const cell = 100 / 9
-      for (const r of rows) {
-        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
-        rect.setAttribute("x", "0")
-        rect.setAttribute("y", String(r * cell))
-        rect.setAttribute("width", "100")
-        rect.setAttribute("height", String(cell))
-        rect.setAttribute("fill", "rgba(173, 116, 230, .10)")
-        rect.classList.add("sf-band")
-        hintSvg.appendChild(rect)
-      }
-      for (const c of cols) {
-        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
-        rect.setAttribute("x", String(c * cell))
-        rect.setAttribute("y", "0")
-        rect.setAttribute("width", String(cell))
-        rect.setAttribute("height", "100")
-        rect.setAttribute("fill", "rgba(0, 210, 210, .08)")
-        rect.classList.add("sf-band")
-        hintSvg.appendChild(rect)
-      }
       const minR = rows[0]
       const maxR = rows[2]
       const minC = cols[0]
@@ -7344,18 +7182,22 @@
       border.setAttribute("stroke-width", "1.2")
       border.classList.add("sf-frame")
       hintSvg.appendChild(border)
+      
+      const vs = new Set(h.vertices || [])
       for (const r of rows) {
         for (const c of cols) {
-          const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
-          rect.setAttribute("x", String(c * cell))
-          rect.setAttribute("y", String(r * cell))
-          rect.setAttribute("width", String(cell))
-          rect.setAttribute("height", String(cell))
-          rect.setAttribute("fill", "rgba(255, 255, 255, .06)")
-          rect.setAttribute("stroke", "rgba(173, 116, 230, .35)")
-          rect.setAttribute("stroke-width", ".8")
-          rect.classList.add("sf-cross")
-          hintSvg.appendChild(rect)
+          if (vs.has(r * 9 + c)) {
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
+            rect.setAttribute("x", String(c * cell))
+            rect.setAttribute("y", String(r * cell))
+            rect.setAttribute("width", String(cell))
+            rect.setAttribute("height", String(cell))
+            rect.setAttribute("fill", "none")
+            rect.setAttribute("stroke", "rgba(173, 116, 230, .45)")
+            rect.setAttribute("stroke-width", "1.2")
+            rect.classList.add("sf-cross")
+            hintSvg.appendChild(rect)
+          }
         }
       }
       hintSvg.classList.add("sf-anim")
@@ -7422,6 +7264,7 @@
       el.classList.remove("hint-rigid-wing")
       el.classList.remove("hint-pivot")
       el.classList.remove("hint-leaf")
+      el.classList.remove("hint-leaf-switch")
       el.classList.remove("hint-chain-end")
       el.classList.remove("hint-chain-mid")
       el.classList.remove("hint-er-cand")
@@ -7436,7 +7279,35 @@
       return
     }
     if (h.type === "eliminate") {
-      for (const i of h.unitCells || []) cellEls[i].classList.add("hint-unit")
+      if (h.tech === "xwing_row" || h.tech === "xwing_col" || h.tech === "swordfish_row" || h.tech === "swordfish_col" || h.tech === "jellyfish_row" || h.tech === "jellyfish_col") {
+        const isRow = h.tech.endsWith("_row")
+        let rr = []
+        let cc = []
+        if (h.rows && h.cols) {
+          rr = h.rows.slice()
+          cc = h.cols.slice()
+        } else {
+          const vs = h.vertices || []
+          rr = Array.from(new Set(vs.map((i) => ((i / 9) | 0)))).sort((a, b) => a - b)
+          cc = Array.from(new Set(vs.map((i) => i % 9))).sort((a, b) => a - b)
+        }
+        
+        if (step === 1) {
+          if (isRow) {
+            for (const r0 of rr) for (const i of rowCells[r0]) cellEls[i].classList.add("hint-unit")
+          } else {
+            for (const c0 of cc) for (const i of colCells[c0]) cellEls[i].classList.add("hint-unit")
+          }
+        } else {
+          if (isRow) {
+            for (const c0 of cc) for (const i of colCells[c0]) cellEls[i].classList.add("hint-unit")
+          } else {
+            for (const r0 of rr) for (const i of rowCells[r0]) cellEls[i].classList.add("hint-unit")
+          }
+        }
+      } else {
+        for (const i of h.unitCells || []) cellEls[i].classList.add("hint-unit")
+      }
       if (h.tech === "xchain") {
         const nodes = h.chainNodes || h.sourceCells || []
         const last = nodes.length - 1
@@ -7468,14 +7339,15 @@
         h.tech === "seven_strong_links" ||
         h.tech === "eight_strong_links"
       ) {
+        const endsSet = new Set(h.ends || [])
         for (const sl of h.strongLinks || []) {
           const a = sl[0] ?? -1
           const b = sl[1] ?? -1
-          if (a >= 0) cellEls[a].classList.add("hint-bridge")
-          if (b >= 0) cellEls[b].classList.add("hint-bridge")
+          if (a >= 0 && !endsSet.has(a)) cellEls[a].classList.add("hint-bridge")
+          if (b >= 0 && !endsSet.has(b)) cellEls[b].classList.add("hint-bridge")
         }
         const ends = h.ends || []
-        for (const i of ends) if (i >= 0) cellEls[i].classList.add("hint-chain-end")
+        for (const i of ends) if (i >= 0) cellEls[i].classList.add("hint-wing")
       } else if (h.tech === "turbot_fish") {
         if (h.variant === "empty_rectangle") {
           const s = h.strongAIdx ?? -1
@@ -7486,11 +7358,12 @@
         } else {
           const s1 = h.strong1 || []
           const s2 = h.strong2 || []
+          const endsSet = new Set(h.ends || [])
           for (const i of [s1[0], s1[1], s2[0], s2[1]]) {
-            if (i >= 0) cellEls[i].classList.add("hint-bridge")
+            if (i >= 0 && !endsSet.has(i)) cellEls[i].classList.add("hint-bridge")
           }
           const ends = h.ends || []
-          for (const i of ends) if (i >= 0) cellEls[i].classList.add("hint-chain-end")
+          for (const i of ends) if (i >= 0) cellEls[i].classList.add("hint-wing")
         }
       } else if (h.tech === "empty_rectangle") {
         const s = h.strongAIdx ?? -1
@@ -7511,9 +7384,9 @@
         const p = h.pivotIdx ?? -1
         const a = h.wingAIdx ?? -1
         const b = h.wingBIdx ?? -1
-        if (p >= 0) cellEls[p].classList.add("hint-hex-pivot")
-        if (a >= 0) cellEls[a].classList.add("hint-rigid-wing")
-        if (b >= 0) cellEls[b].classList.add("hint-rigid-wing")
+        if (p >= 0) cellEls[p].classList.add("hint-pivot")
+        if (a >= 0) cellEls[a].classList.add("hint-leaf")
+        if (b >= 0) cellEls[b].classList.add("hint-leaf")
       } else if (h.tech === "xyzwing") {
         const p = h.pivotIdx ?? -1
         const a = h.wingAIdx ?? -1
@@ -7523,24 +7396,31 @@
         if (b >= 0) cellEls[b].classList.add("hint-leaf")
       } else if (h.tech === "wxyzwing") {
         const p = h.wxyzIdx ?? -1
-        if (p >= 0) cellEls[p].classList.add("hint-pivot")
+        if (p >= 0 && activeState && activeState.grid && activeState.grid[p] === 0) cellEls[p].classList.add("hint-pivot")
         for (const i of h.sourceCells || []) {
           if (i < 0) continue
           if (i === p) continue
+          if (!(activeState && activeState.grid && activeState.grid[i] === 0)) continue
           cellEls[i].classList.add("hint-leaf")
         }
+        const yz = h.yzIdx ?? -1
+        if (step >= 2 && yz >= 0 && activeState && activeState.grid && activeState.grid[yz] === 0) cellEls[yz].classList.add("hint-leaf-switch")
       } else if (h.tech === "vwxyzwing") {
         const p = h.vwxyzIdx ?? -1
-        if (p >= 0) cellEls[p].classList.add("hint-pivot")
+        if (p >= 0 && activeState && activeState.grid && activeState.grid[p] === 0) cellEls[p].classList.add("hint-pivot")
         for (const i of h.sourceCells || []) {
           if (i < 0) continue
           if (i === p) continue
+          if (!(activeState && activeState.grid && activeState.grid[i] === 0)) continue
           cellEls[i].classList.add("hint-leaf")
         }
+        const yz = h.yzIdx ?? -1
+        if (step >= 2 && yz >= 0 && activeState && activeState.grid && activeState.grid[yz] === 0) cellEls[yz].classList.add("hint-leaf-switch")
+      } else if (h.tech === "xwing_row" || h.tech === "xwing_col") {
       } else {
         for (const i of h.sourceCells || []) cellEls[i].classList.add("hint-source")
       }
-      if (step === 2) {
+      if (step === hintStepCount(h)) {
         for (const i of h.targetCells || []) {
           cellEls[i].classList.add("hint-elim")
           if (h.tech === "wwing") cellEls[i].classList.add("hint-elim-wwing")
@@ -7573,6 +7453,8 @@
           h.tech === "six_strong_links" ||
           h.tech === "seven_strong_links" ||
           h.tech === "eight_strong_links" ||
+          h.tech === "xwing_row" ||
+          h.tech === "xwing_col" ||
           h.tech === "xcycle" ||
           h.tech === "xycycle"
           ? h
@@ -7612,6 +7494,30 @@
         }
         for (const i of h.conflictCells || []) if (i >= 0) cellEls[i].classList.add("hint-cycle-false")
         cellEls[h.idx].classList.add("hint-target")
+        renderHintLines(h, step)
+        return
+      }
+      if (h.tech === "xwing_row" || h.tech === "xwing_col") {
+        const vs = h.vertices || []
+        if (vs.length === 4) {
+          const rr = Array.from(new Set(vs.map((i) => ((i / 9) | 0)))).sort((a, b) => a - b)
+          const cc = Array.from(new Set(vs.map((i) => i % 9))).sort((a, b) => a - b)
+          if (rr.length === 2 && cc.length === 2) {
+            if (step === 1) {
+              if (h.tech === "xwing_row") {
+                for (const r0 of rr) for (const i of rowCells[r0]) cellEls[i].classList.add("hint-unit")
+              } else {
+                for (const c0 of cc) for (const i of colCells[c0]) cellEls[i].classList.add("hint-unit")
+              }
+            } else {
+              if (h.tech === "xwing_row") {
+                for (const c0 of cc) for (const i of colCells[c0]) cellEls[i].classList.add("hint-unit")
+              } else {
+                for (const r0 of rr) for (const i of rowCells[r0]) cellEls[i].classList.add("hint-unit")
+              }
+            }
+          }
+        }
         renderHintLines(h, step)
         return
       }
@@ -7729,16 +7635,17 @@
       return "因此目标格里某些候选在所有可行组合中都不会出现，可以排除。"
     }
     if (h.tech === "wxyzwing") {
-      const dl = !!h.doubleLink
-      if (step === 1) {
-        const yz = h.yzIdx ?? -1
-        const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
-        const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
-        if (yz >= 0 && x && z)
-          return `第 1 步：锁定结构。深金框是枢纽格，浅金框是叶子格；其中有一个叶子格只剩 {${x}, ${z}}，可以把它当成“二选一开关”。`
-        return "第 1 步：锁定结构。深金框是枢纽格，浅金框是叶子格；先只关注这些点与连线。"
+      const yz = h.yzIdx ?? -1
+      const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
+      const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
+      const unionMask = h.interMask || 0
+      const ws = []
+      let wm = unionMask
+      while (wm) {
+        const bit = wm & -wm
+        wm ^= bit
+        ws.push((Math.log2(bit) | 0) + 1)
       }
-      const prefix = dl ? "第 2 步：逻辑连锁（双链）。" : "第 2 步：逻辑连锁。"
       const ds = []
       let m = 0
       for (const e of h.elimList || []) m |= e.mask || 0
@@ -7747,27 +7654,44 @@
         m ^= bit
         ds.push((Math.log2(bit) | 0) + 1)
       }
-      const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
-      const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
-      if (!ds.length) {
-        if (x && z) return `${prefix}先用“二选一开关”推导：当叶子格只能是 {${x}, ${z}} 时，只要推出它不可能是其中一个数，它就会被迫选另一个数。把这条规则沿着结构传递，就能得到排除结论。`
-        return `${prefix}核心规则是“二选一”：否定其中一个候选，就会强制另一个候选成立。把这个规则沿结构传递后得到排除结论。`
+      if (step === 1) {
+        const setText = ws.length ? `共同包含候选数 {${ws.join(", ")}}。` : "构成一个闭合网络。"
+        if (x && z) return `第 1 步：锁定结构。棕色枢纽格与黄色叶子格${setText}其中有一个叶子格中只有两个候选数 {${x}, ${z}}，我们把它当做二选一开关（第 2 步会用黄绿色描边标出）。`
+        return `第 1 步：锁定结构。棕色枢纽格与黄色叶子格${setText}`
       }
-      if (x && z)
-        return `${prefix}把叶子格 {${x}, ${z}} 当成“二选一开关”，再把推导沿连线传递：无论枢纽格最终是哪一种情况，都会得到同一个结论，所以红叉处的候选（${ds.join(" / ")}）可以删除。`
-      return `${prefix}把“二选一开关”的推导沿连线传递：无论枢纽格最终是哪一种情况，都会得到同一个结论，所以红叉处的候选（${ds.join(" / ")}）可以删除。`
+      if (step === 2) {
+        if (yz >= 0 && x && z) return `第 2 步：情况 A（开关叶子格是 ${z}）。开关叶子格只有 {${x}, ${z}}，如果它填入 ${z}，那么目标数字就位于此处。`
+        if (x && z) return `第 2 步：情况 A（开关叶子格是 ${z}）。开关叶子格只有 {${x}, ${z}}，如果它填入 ${z}，那么目标数字就位于此处。`
+        if (z) return `第 2 步：情况 A（开关叶子格是 ${z}）。如果开关叶子格填入 ${z}，那么目标数字就位于此处。`
+        return "第 2 步：情况 A（目标在开关叶子格）。如果开关叶子格填入目标数字，那么目标数字就位于此处。"
+      }
+      if (step === 3) {
+        const wsn = z ? ws.filter((d) => d !== z) : ws.slice()
+        if (x && z && wsn.length) return `第 3 步：情况 B（开关叶子格是 ${x}）。开关叶子格只有 {${x}, ${z}}，若它不填 ${z}，则其余格子将瓜分 {${wsn.join(", ")}}；位置被占满后，${z} 只能落在红色叶子格之一。`
+        if (x && z) return `第 3 步：情况 B（开关叶子格是 ${x}）。开关叶子格只有 {${x}, ${z}}，若它不填 ${z}，则 ${z} 只能落在红色叶子格之一。`
+        if (z && wsn.length) return `第 3 步：情况 B（开关叶子格不为 ${z}）。若开关叶子格不填 ${z}，则其余格子将瓜分 {${wsn.join(", ")}}；位置被占满后，${z} 只能落在红色叶子格之一。`
+        if (z) return `第 3 步：情况 B（开关叶子格不为 ${z}）。若开关叶子格不填 ${z}，则 ${z} 只能落在红色叶子格之一。`
+        return "第 3 步：情况 B（目标不在开关叶子格）。若开关叶子格不填目标数字，则目标数字只能落在红色叶子格之一。"
+      }
+      if (ds.length) {
+        if (z) return `第 4 步：结论。不论哪种情况，${z} 必在结构中的红色位置之一，因此红叉处的候选（${ds.join(" / ")}）都可以被排除。`
+        return `第 4 步：结论。不论哪种情况，目标数字必在结构中的红色位置之一，因此红叉处的候选（${ds.join(" / ")}）都可以被排除。`
+      }
+      if (z) return `第 4 步：结论。不论哪种情况，${z} 必在结构中的红色位置之一，因此红叉处的候选可以被排除。`
+      return "第 4 步：结论。不论哪种情况，目标数字必在结构中的红色位置之一，因此红叉处的候选可以被排除。"
     }
     if (h.tech === "vwxyzwing") {
-      const dl = !!h.doubleLink
-      if (step === 1) {
-        const yz = h.yzIdx ?? -1
-        const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
-        const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
-        if (yz >= 0 && x && z)
-          return `第 1 步：锁定结构。深金框是枢纽格，浅金框是叶子格；其中有一个叶子格只剩 {${x}, ${z}}，可以把它当成“二选一开关”。`
-        return "第 1 步：锁定结构。深金框是枢纽格，浅金框是叶子格；先只关注这些点与连线。"
+      const yz = h.yzIdx ?? -1
+      const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
+      const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
+      const unionMask = h.unionMask || 0
+      const ws = []
+      let wm = unionMask
+      while (wm) {
+        const bit = wm & -wm
+        wm ^= bit
+        ws.push((Math.log2(bit) | 0) + 1)
       }
-      const prefix = dl ? "第 2 步：逻辑连锁（双链）。" : "第 2 步：逻辑连锁。"
       const ds = []
       let m = 0
       for (const e of h.elimList || []) m |= e.mask || 0
@@ -7776,15 +7700,31 @@
         m ^= bit
         ds.push((Math.log2(bit) | 0) + 1)
       }
-      const x = h.xBit ? (Math.log2(h.xBit) | 0) + 1 : 0
-      const z = h.zBit ? (Math.log2(h.zBit) | 0) + 1 : 0
-      if (!ds.length) {
-        if (x && z) return `${prefix}先用“二选一开关”推导：当叶子格只能是 {${x}, ${z}} 时，只要推出它不可能是其中一个数，它就会被迫选另一个数。把这条规则沿着结构传递，就能得到排除结论。`
-        return `${prefix}核心规则是“二选一”：否定其中一个候选，就会强制另一个候选成立。把这个规则沿结构传递后得到排除结论。`
+      if (step === 1) {
+        const setText = ws.length ? `共同包含候选数 {${ws.join(", ")}}。` : "构成一个闭合网络。"
+        if (x && z) return `第 1 步：锁定结构。棕色枢纽格与黄色叶子格${setText}其中有一个叶子格中只有两个候选数 {${x}, ${z}}，我们把它当做二选一开关（第 2 步会用黄绿色描边标出）。`
+        return `第 1 步：锁定结构。棕色枢纽格与黄色叶子格${setText}`
       }
-      if (x && z)
-        return `${prefix}把叶子格 {${x}, ${z}} 当成“二选一开关”，再把推导沿连线传递：无论枢纽格最终是哪一种情况，都会得到同一个结论，所以红叉处的候选（${ds.join(" / ")}）可以删除。`
-      return `${prefix}把“二选一开关”的推导沿连线传递：无论枢纽格最终是哪一种情况，都会得到同一个结论，所以红叉处的候选（${ds.join(" / ")}）可以删除。`
+      if (step === 2) {
+        if (yz >= 0 && x && z) return `第 2 步：情况 A（开关叶子格是 ${z}）。开关叶子格只有 {${x}, ${z}}，如果它填入 ${z}，那么目标数字就位于此处。`
+        if (x && z) return `第 2 步：情况 A（开关叶子格是 ${z}）。开关叶子格只有 {${x}, ${z}}，如果它填入 ${z}，那么目标数字就位于此处。`
+        if (z) return `第 2 步：情况 A（开关叶子格是 ${z}）。如果开关叶子格填入 ${z}，那么目标数字就位于此处。`
+        return "第 2 步：情况 A（目标在开关叶子格）。如果开关叶子格填入目标数字，那么目标数字就位于此处。"
+      }
+      if (step === 3) {
+        const wsn = z ? ws.filter((d) => d !== z) : ws.slice()
+        if (x && z && wsn.length) return `第 3 步：情况 B（开关叶子格是 ${x}）。开关叶子格只有 {${x}, ${z}}，若它不填 ${z}，则其余格子将瓜分 {${wsn.join(", ")}}；位置被占满后，${z} 只能落在红色叶子格之一。`
+        if (x && z) return `第 3 步：情况 B（开关叶子格是 ${x}）。开关叶子格只有 {${x}, ${z}}，若它不填 ${z}，则 ${z} 只能落在红色叶子格之一。`
+        if (z && wsn.length) return `第 3 步：情况 B（开关叶子格不为 ${z}）。若开关叶子格不填 ${z}，则其余格子将瓜分 {${wsn.join(", ")}}；位置被占满后，${z} 只能落在红色叶子格之一。`
+        if (z) return `第 3 步：情况 B（开关叶子格不为 ${z}）。若开关叶子格不填 ${z}，则 ${z} 只能落在红色叶子格之一。`
+        return "第 3 步：情况 B（目标不在开关叶子格）。若开关叶子格不填目标数字，则目标数字只能落在红色叶子格之一。"
+      }
+      if (ds.length) {
+        if (z) return `第 4 步：结论。不论哪种情况，${z} 必在结构中的红色位置之一，因此红叉处的候选（${ds.join(" / ")}）都可以被排除。`
+        return `第 4 步：结论。不论哪种情况，目标数字必在结构中的红色位置之一，因此红叉处的候选（${ds.join(" / ")}）都可以被排除。`
+      }
+      if (z) return `第 4 步：结论。不论哪种情况，${z} 必在结构中的红色位置之一，因此红叉处的候选可以被排除。`
+      return "第 4 步：结论。不论哪种情况，目标数字必在结构中的红色位置之一，因此红叉处的候选可以被排除。"
     }
     if (h.tech === "ate") {
       if (step === 1) return "这里使用 ATE（Aligned Triplet Exclusion）：枚举三格的候选组合，排除会让共同格“无候选”的组合。"
@@ -7924,14 +7864,17 @@
         return `第二步：交叉推导。红色强链会迫使空矩形沿另一条“臂”成立，因此交叉点处的候选 ${h.digit} 都可以排除。`
       }
       if (v === "skyscraper") {
-        if (step === 1) return `这里形成了 涡轮鱼（摩天楼形态）：数字 ${h.digit} 由两条红色强链支撑，并通过一条蓝色弱链相连。`
+        if (step === 1)
+          return `这里形成了 涡轮鱼（摩天楼形态）：数字 ${h.digit} 由两条红色强链支撑，并通过一条蓝色弱链相连。因此链的两端必然有一个格子填 ${h.digit}。`
         return `因此同时“看见”两端的格子里，候选 ${h.digit} 都可以排除。`
       }
       if (v === "two_string_kite") {
-        if (step === 1) return `这里形成了 涡轮鱼（双强链形态）：数字 ${h.digit} 由两条红色强链支撑，并通过一条蓝色弱链相连。`
-        return `因此目标区域的候选 ${h.digit} 都可以排除。`
+        if (step === 1)
+          return `这里形成了 涡轮鱼（双强链形态）：数字 ${h.digit} 由两条红色强链支撑，并通过一条蓝色弱链相连。因此链的两端必然有一个格子填 ${h.digit}。`
+        return `因此同时“看见”两端的格子里，候选 ${h.digit} 都可以排除。`
       }
-      if (step === 1) return `这里形成了 涡轮鱼（Turbot Fish）：数字 ${h.digit} 由两条红色强链支撑，并通过一条蓝色弱链相连。`
+      if (step === 1)
+        return `这里形成了 涡轮鱼（Turbot Fish）：数字 ${h.digit} 由两条红色强链支撑，并通过一条蓝色弱链相连。因此链的两端必然有一个格子填 ${h.digit}。`
       return `因此同时“看见”两端的格子里，候选 ${h.digit} 都可以排除。`
     }
     if (h.tech === "three_strong_links") {
@@ -7939,7 +7882,7 @@
       if (step === 1) {
         if (v === "mutant") return `这里形成了 3 强链鱼（Mutant 3SL）：数字 ${h.digit} 由三条红色强链串联，并以蓝色弱链连接成推理链。`
         if (v === "mixed") return `这里形成了 3 强链鱼（Mixed 3SL）：数字 ${h.digit} 由三条红色强链串联，并以蓝色弱链连接成推理链。`
-        return `这里形成了 3 强链鱼（3 Strong-linked Fishes）：数字 ${h.digit} 由三条红色强链串联，并以蓝色弱链连接成推理链。`
+        return `这里形成了 3 强链鱼（3 Strong-linked Fishes）：数字 ${h.digit} 由三条红色强链串联，并以蓝色弱链连接成推理链。因此链的两端必然有一个格子填 ${h.digit}。`
       }
       return `因此同时“看见”两端的格子里，候选 ${h.digit} 都可以排除。`
     }
@@ -7966,12 +7909,14 @@
       return `因此同时“看见”两端的格子里，候选 ${h.digit} 都可以排除。`
     }
     if (h.tech === "skyscraper_row" || h.tech === "skyscraper_col") {
-      if (step === 1) return `这里形成了 摩天楼：数字 ${h.digit} 在两条线中各出现两次，并共享一个对齐点。`
+      if (step === 1)
+        return `这里形成了 摩天楼：数字 ${h.digit} 在两条线中各出现两次，并共享一个对齐点。因此链的两端必然有一个格子填 ${h.digit}。`
       return `因此同时“看见”两个端点的格子里，候选 ${h.digit} 都可以排除。`
     }
     if (h.tech === "two_string_kite") {
-      if (step === 1) return `这里形成了 双强链（Two-String Kite）：数字 ${h.digit} 在一行与一列被强制锁定，并通过同一宫相连。`
-      return `因此目标格可以排除候选 ${h.digit}。`
+      if (step === 1)
+        return `这里形成了 双强链（Two-String Kite）：数字 ${h.digit} 在一行与一列被强制锁定，并通过同一宫相连。因此链的两端必然有一个格子填 ${h.digit}。`
+      return `因此同时“看见”两个端点的格子里，候选 ${h.digit} 都可以排除。`
     }
     if (h.tech === "wwing") {
       const a = h.wingAIdx ?? -1
@@ -7983,9 +7928,9 @@
       const linkD = h.bridgeDigit || 0
       const elimD = h.digit || 0
       if (step === 1) {
-        return `这里形成了 W-Wing：两翼（第 ${ar} 行第 ${ac} 列、 第 ${br} 行第 ${bc} 列）是相同数对 {${linkD}, ${elimD}}，并由数字 ${linkD} 的强链桥相连。`
+        return `这里形成了 W-Wing：两翼（第 ${ar} 行第 ${ac} 列、 第 ${br} 行第 ${bc} 列）是相同数对 {${linkD}, ${elimD}}，并由数字 ${linkD} 的强链桥相连。因此链的两端必然有一个格子填 ${elimD}。`
       }
-      return `无论强链中的 ${linkD} 落在哪一端，都会迫使其中一翼填 ${elimD}；因此红框区域的候选 ${elimD} 都可以排除。`
+      return `因此同时“看见”两个端点的格子里，候选 ${elimD} 都可以排除。`
     }
     if (h.tech === "empty_rectangle") {
       const b = h.boxIndex ?? -1
@@ -8013,15 +7958,15 @@
     }
     if (h.tech === "xyzwing") {
       if (step === 1) {
-        return "第 1 步：锁定结构。棕色框是枢纽格，黄色框是叶子格；三者合起来形成一个“无论枢纽怎么选，都能逼出同一个结论”的结构。"
+        return `第 1 步：锁定结构。棕色框是枢纽格，黄色框是叶子格；不论枢纽怎么选，这三个格子中必然有一个格子填 ${h.digit}。`
       }
-      return `第 2 步：二选一推导。枢纽格有三种可能；每一种可能都会迫使其中一个叶子格只能选择目标数。于是任何同时受到两个叶子格影响的位置，都不可能再放目标数 ${h.digit}（红叉处可删）。`
+      return `第 2 步：因此同时“看见”两个叶子格和一个枢纽格的格子里，候选 ${h.digit} 都可以被排除（红叉处可删）。`
     }
     if (h.tech === "xywing") {
       if (step === 1) {
-        return "第 1 步：锁定结构。六边形框是枢纽格，两个方框是叶子格；先只关注这些点与连线。"
+        return `第 1 步：锁定结构。棕色框是枢纽格，黄色框是叶子格；因此两个叶子格中必然有一个格子填 ${h.digit}。`
       }
-      return `第 2 步：二选一开关。枢纽格只能二选一：如果它选了其中一个数，就会逼得某个叶子只能填目标数 ${h.digit}；反过来亦然。于是任何同时受到两片叶子影响的位置，都不可能再放 ${h.digit}（红叉处可删）。`
+      return `第 2 步：因此同时“看见”两个叶子格和一个枢纽格的格子里，候选 ${h.digit} 都可以被排除（红叉处可删）。`
     }
     if (h.tech === "xwing_row" || h.tech === "xwing_col") {
       const vs = h.vertices || []
@@ -8029,16 +7974,35 @@
         const rr = Array.from(new Set(vs.map((i) => ((i / 9) | 0)))).sort((a, b) => a - b)
         const cc = Array.from(new Set(vs.map((i) => i % 9))).sort((a, b) => a - b)
         if (step === 1) {
-          return `这里形成了 X-Wing：数字 ${h.digit} 被锁定在第 ${rr[0] + 1}/${rr[1] + 1} 行与第 ${cc[0] + 1}/${cc[1] + 1} 列的交点上。`
+          if (h.tech === "xwing_row") {
+            return `第 1 步：在第 ${rr[0] + 1} 行与第 ${rr[1] + 1} 行里，数字 ${h.digit} 都只有两个候选格；这四个候选格构成一个矩形 X-Wing。数字 ${h.digit} 必然在该矩形的任意两个对角格。`
+          }
+          return `第 1 步：在第 ${cc[0] + 1} 列与第 ${cc[1] + 1} 列里，数字 ${h.digit} 都只有两个候选格；这四个候选格构成一个矩形 X-Wing。数字 ${h.digit} 必然在该矩形的任意两个对角格。`
         }
-        return `因此第 ${cc[0] + 1}/${cc[1] + 1} 列（或对应行）其他位置的候选 ${h.digit} 都可以排除。`
+        if (h.tech === "xwing_row") return `第 2 步：因此第 ${cc[0] + 1} 列和第 ${cc[1] + 1} 列的其他位置，候选 ${h.digit} 都可以被排除。`
+        return `第 2 步：因此第 ${rr[0] + 1} 行和第 ${rr[1] + 1} 行的其他位置，候选 ${h.digit} 都可以被排除。`
       }
-      if (step === 1) return `这里形成了 X-Wing：数字 ${h.digit} 在两行两列中被锁定。`
+      if (step === 1) return `第 1 步：数字 ${h.digit} 必然在该矩形的任意两个对角格。`
       return `因此相关行/列的其他位置可以排除候选 ${h.digit}。`
     }
     if (h.tech === "swordfish_row" || h.tech === "swordfish_col") {
-      if (step === 1) return `这里形成了 剑鱼：数字 ${h.digit} 被限制在 3 行与 3 列的交叉范围内。`
-      return `因此相关 3 列（或 3 行）的其他位置可以排除候选 ${h.digit}。`
+      const isRow = h.tech === "swordfish_row"
+      const rows = h.rows ? h.rows.slice().sort((a, b) => a - b) : []
+      const cols = h.cols ? h.cols.slice().sort((a, b) => a - b) : []
+      const rStr = rows.map((r) => r + 1).join("、")
+      const cStr = cols.map((c) => c + 1).join("、")
+      
+      if (step === 1) {
+        if (isRow) {
+          return `在第 ${rStr} 行中，数字 ${h.digit} 被锁定在一个剑鱼（Swordfish）结构中。`
+        }
+        return `在第 ${cStr} 列中，数字 ${h.digit} 被锁定在一个剑鱼（Swordfish）结构中。`
+      }
+      
+      if (isRow) {
+        return `因此，在第 ${cStr} 列的其他位置，候选 ${h.digit} 都可以被排除。`
+      }
+      return `因此，在第 ${rStr} 行的其他位置，候选 ${h.digit} 都可以被排除。`
     }
     if (h.tech === "jellyfish_row" || h.tech === "jellyfish_col") {
       if (step === 1) return `这里形成了 水母：数字 ${h.digit} 被限制在 4 行与 4 列的交叉范围内。`
@@ -8049,8 +8013,18 @@
 
   const renderHint = () => {
     if (!hintState || !hintState.hint) return
+    if (activeState && activeState.selected >= 0) {
+      lastSelectedIdx = activeState.selected
+      activeState.selected = -1
+      refreshHighlights()
+      updatePad()
+    }
     const h = hintState.hint
-    const step = hintState.step || 1
+    const maxStep = hintStepCount(h)
+    let step = hintState.step || 1
+    if (step < 1) step = 1
+    if (step > maxStep) step = maxStep
+    if (hintState.step !== step) hintState.step = step
     const allowTrace = !!(activeState && (activeState.isDev || activeState.difficulty === "hard" || activeState.difficulty === "diabolical"))
     const hasTrace = !!(allowTrace && h.traceBranches && h.traceBranches.length)
     if (ui.btnHintTrace) ui.btnHintTrace.classList.toggle("hidden", !hasTrace)
@@ -8061,17 +8035,253 @@
       const ts = el.querySelectorAll(".notes span.hint-temp")
       for (const s of ts) {
         s.classList.remove("hint-temp")
-        s.classList.remove("on")
-        s.textContent = ""
+        s.classList.remove("hint-temp-a")
+        s.classList.remove("hint-temp-b")
+        s.classList.remove("hint-temp-c")
+        s.classList.remove("hint-temp-n")
+        const digit = parseInt(s.getAttribute("data-n"), 10)
+        const cellIdx = parseInt(el.getAttribute("data-idx"), 10)
+        const m = (activeState && activeState.notes) ? activeState.notes[cellIdx] || 0 : 0
+        if (!(m & (1 << (digit - 1)))) {
+          s.classList.remove("on")
+          s.textContent = ""
+        }
       }
     }
     applyHintHighlight(h, step)
+    if ((step === 1 || step === 2) && (h.tech === "xwing_row" || h.tech === "xwing_col")) {
+      const vs = h.vertices || []
+      const d = h.digit || 0
+      if (d && vs.length === 4) {
+        const pairA = [vs[0], vs[2]]
+        const pairB = [vs[1], vs[3]]
+        for (let k = 0; k < pairA.length; k++) {
+          const idx = pairA[k]
+          const s = cellEls[idx]?.querySelector(`.notes span[data-n="${d}"]`)
+          if (s) {
+            s.classList.add("hint-temp")
+            s.classList.add("hint-temp-a")
+            s.classList.add("on")
+            s.textContent = String(d)
+          }
+        }
+        for (let k = 0; k < pairB.length; k++) {
+          const idx = pairB[k]
+          const s = cellEls[idx]?.querySelector(`.notes span[data-n="${d}"]`)
+          if (s) {
+            s.classList.add("hint-temp")
+            s.classList.add("hint-temp-b")
+            s.classList.add("on")
+            s.textContent = String(d)
+          }
+        }
+      }
+    }
+    if ((step === 1 || step === 2) && h.tech === "xywing") {
+      const pivot = h.pivotIdx ?? -1
+      const wingA = h.wingAIdx ?? -1
+      const wingB = h.wingBIdx ?? -1
+      const cDigit = h.digit || 0
+      if (pivot >= 0 && wingA >= 0 && wingB >= 0 && cDigit >= 1 && cDigit <= 9) {
+        const legal = buildLegalCandidateMasks(activeState.grid, activeState.givens)
+        const pm = legal[pivot] || 0
+        const am = legal[wingA] || 0
+        const bm = legal[wingB] || 0
+        if (bitCount(pm) === 2 && bitCount(am) === 2 && bitCount(bm) === 2) {
+          const aBit = am & pm
+          const bBit = bm & pm
+          if (bitCount(aBit) === 1 && bitCount(bBit) === 1) {
+            const aDigit = digitFromSingleMask(aBit)
+            const bDigit = digitFromSingleMask(bBit)
+
+            const pBlue = cellEls[pivot]?.querySelector(`.notes span[data-n="${aDigit}"]`)
+            if (pBlue) {
+              pBlue.classList.add("hint-temp")
+              pBlue.classList.add("hint-temp-b")
+              pBlue.classList.add("on")
+              pBlue.textContent = String(aDigit)
+            }
+            const wABlue = cellEls[wingA]?.querySelector(`.notes span[data-n="${cDigit}"]`)
+            if (wABlue) {
+              wABlue.classList.add("hint-temp")
+              wABlue.classList.add("hint-temp-b")
+              wABlue.classList.add("on")
+              wABlue.textContent = String(cDigit)
+            }
+
+            const pRed = cellEls[pivot]?.querySelector(`.notes span[data-n="${bDigit}"]`)
+            if (pRed) {
+              pRed.classList.add("hint-temp")
+              pRed.classList.add("hint-temp-a")
+              pRed.classList.add("on")
+              pRed.textContent = String(bDigit)
+            }
+            const wBRed = cellEls[wingB]?.querySelector(`.notes span[data-n="${cDigit}"]`)
+            if (wBRed) {
+              wBRed.classList.add("hint-temp")
+              wBRed.classList.add("hint-temp-a")
+              wBRed.classList.add("on")
+              wBRed.textContent = String(cDigit)
+            }
+          }
+        }
+      }
+    }
+    if ((step === 1 || step === 2) && h.tech === "xyzwing") {
+      const pivot = h.pivotIdx ?? -1
+      const wingA = h.wingAIdx ?? -1
+      const wingB = h.wingBIdx ?? -1
+      const cDigit = h.digit || 0
+      if (pivot >= 0 && wingA >= 0 && wingB >= 0 && cDigit >= 1 && cDigit <= 9) {
+        const legal = buildLegalCandidateMasks(activeState.grid, activeState.givens)
+        const pm = legal[pivot] || 0
+        const am = legal[wingA] || 0
+        const bm = legal[wingB] || 0
+        const cBit = 1 << (cDigit - 1)
+        if ((pm & cBit) && (am & cBit) && (bm & cBit) && bitCount(pm) === 3 && bitCount(am) === 2 && bitCount(bm) === 2) {
+          const aBit = am ^ cBit
+          const bBit = bm ^ cBit
+          if (bitCount(aBit) === 1 && bitCount(bBit) === 1) {
+            const aDigit = digitFromSingleMask(aBit)
+            const bDigit = digitFromSingleMask(bBit)
+
+            const pBlue = cellEls[pivot]?.querySelector(`.notes span[data-n="${aDigit}"]`)
+            if (pBlue) {
+              pBlue.classList.add("hint-temp")
+              pBlue.classList.add("hint-temp-b")
+              pBlue.classList.add("on")
+              pBlue.textContent = String(aDigit)
+            }
+            const wABlue = cellEls[wingA]?.querySelector(`.notes span[data-n="${cDigit}"]`)
+            if (wABlue) {
+              wABlue.classList.add("hint-temp")
+              wABlue.classList.add("hint-temp-b")
+              wABlue.classList.add("on")
+              wABlue.textContent = String(cDigit)
+            }
+
+            const pRed = cellEls[pivot]?.querySelector(`.notes span[data-n="${bDigit}"]`)
+            if (pRed) {
+              pRed.classList.add("hint-temp")
+              pRed.classList.add("hint-temp-a")
+              pRed.classList.add("on")
+              pRed.textContent = String(bDigit)
+            }
+            const wBRed = cellEls[wingB]?.querySelector(`.notes span[data-n="${cDigit}"]`)
+            if (wBRed) {
+              wBRed.classList.add("hint-temp")
+              wBRed.classList.add("hint-temp-a")
+              wBRed.classList.add("on")
+              wBRed.textContent = String(cDigit)
+            }
+
+            const pGreen = cellEls[pivot]?.querySelector(`.notes span[data-n="${cDigit}"]`)
+            if (pGreen) {
+              pGreen.classList.add("hint-temp")
+              pGreen.classList.add("hint-temp-c")
+              pGreen.classList.add("on")
+              pGreen.textContent = String(cDigit)
+            }
+          }
+        }
+      }
+    }
+    if ((h.tech === "wxyzwing" || h.tech === "vwxyzwing") && (step === 1 || step === 2 || step === 3 || step === 4)) {
+      const legal = buildLegalCandidateMasks(activeState.grid, activeState.givens)
+      const xBit = h.xBit || 0
+      const x = xBit ? (Math.log2(xBit) | 0) + 1 : 0
+      const zBit = h.zBit || 0
+      const z = zBit ? (Math.log2(zBit) | 0) + 1 : 0
+      const unionMask = h.tech === "wxyzwing" ? (h.interMask || 0) : (h.unionMask || 0)
+      const pivot = h.tech === "wxyzwing" ? (h.wxyzIdx ?? -1) : (h.vwxyzIdx ?? -1)
+      const yz = h.yzIdx ?? -1
+      const src = h.sourceCells || []
+      const mark = (idx, digit, cls) => {
+        const s = cellEls[idx]?.querySelector(`.notes span[data-n="${digit}"]`)
+        if (!s) return
+        s.classList.add("hint-temp")
+        s.classList.add(cls)
+        s.classList.add("on")
+        s.textContent = String(digit)
+      }
+      const markExisting = (idx, digit, cls) => {
+        if (!activeState.notes) return
+        const cm = activeState.notes[idx] || 0
+        if (!(cm & (1 << (digit - 1)))) return
+        const s = cellEls[idx]?.querySelector(`.notes span[data-n="${digit}"]`)
+        if (!s) return
+        s.classList.add("hint-temp")
+        s.classList.add(cls)
+      }
+      if (unionMask) {
+        if (step === 1) {
+          for (const idx of src) {
+            if (idx < 0) continue
+            if (activeState.givens[idx]) continue
+            if (activeState.grid[idx] !== 0) continue
+            let m = unionMask
+            while (m) {
+              const bit = m & -m
+              m ^= bit
+              const d = (Math.log2(bit) | 0) + 1
+              markExisting(idx, d, "hint-temp-n")
+            }
+          }
+        }
+      }
+      if (z && yz >= 0) {
+        if (step === 2) {
+          mark(yz, z, "hint-temp-a")
+        } else if (step === 3) {
+          mark(yz, z, "hint-temp-b")
+          if (x && x >= 1 && x <= 9) markExisting(yz, x, "hint-temp-n")
+          const otherMask = unionMask & ~zBit
+          if (otherMask) {
+            for (const idx of src) {
+              if (idx < 0) continue
+              if (idx === yz) continue
+              if (activeState.givens[idx]) continue
+              if (activeState.grid[idx] !== 0) continue
+              let m = otherMask
+              while (m) {
+                const bit = m & -m
+                m ^= bit
+                const d = (Math.log2(bit) | 0) + 1
+                markExisting(idx, d, "hint-temp-n")
+              }
+            }
+          }
+          for (const idx of src) {
+            if (idx < 0) continue
+            if (idx === yz) continue
+            if (activeState.givens[idx]) continue
+            if (activeState.grid[idx] !== 0) continue
+            const m = legal[idx] || 0
+            if (m & zBit) mark(idx, z, "hint-temp-a")
+          }
+        } else if (step === 4) {
+          mark(yz, z, "hint-temp-a")
+          for (const idx of src) {
+            if (idx < 0) continue
+            if (activeState.givens[idx]) continue
+            if (activeState.grid[idx] !== 0) continue
+            const m = legal[idx] || 0
+            if (m & zBit) mark(idx, z, "hint-temp-a")
+          }
+        }
+      }
+    }
     ui.hintBadge.textContent = hintBadgeText(h)
     ui.hintBadge.classList.remove("diff-intro", "diff-easy", "diff-medium", "diff-hard", "diff-extreme")
     ui.hintBadge.classList.add("diff-" + hintDifficultyKey(h))
-    ui.hintMessage.textContent = hintMessageText(h, step)
-    ui.btnHintNext.textContent = step === 2 ? "上一步" : "下一步"
-    ui.btnHintApply.classList.toggle("hidden", step !== 2)
+    ui.hintMessage.textContent = hintMessageText(h, step).replace(/^(?:第\s*[1-4]\s*步|第[一二三四]步|第一步|第二步|第三步|第四步)\s*[：:]\s*/u, "")
+    if (ui.btnHintPrev) {
+      ui.btnHintPrev.textContent = "上一步"
+      ui.btnHintPrev.classList.toggle("hidden", step <= 1)
+    }
+    ui.btnHintNext.textContent = "下一步"
+    ui.btnHintNext.classList.toggle("hidden", step >= maxStep)
+    ui.btnHintApply.classList.toggle("hidden", step !== maxStep)
     let hasAnyNotes = false
     if (activeState && activeState.notes) {
       for (let i = 0; i < 81; i++) {
@@ -8092,7 +8302,7 @@
               : "笔记"
     else ui.btnHintApply.textContent = h.type === "eliminate" ? (hasAnyNotes ? "排除" : "知道了") : "填入"
     ui.btnHintApply.disabled = false
-    if (step === 2 && h.type === "eliminate") {
+    if (step === maxStep && h.type === "eliminate") {
       const cands = activeState.notes || new Uint16Array(81)
       const elimEntries = []
       if (h.elimList && h.elimList.length) {
@@ -8145,8 +8355,10 @@
       openNextHint()
       return
     }
-    if (hintState.step === 1) {
-      hintState.step = 2
+    const maxStep = hintStepCount(hintState.hint)
+    const step = hintState.step || 1
+    if (step < maxStep) {
+      hintState.step = step + 1
       renderHint()
     }
   }
@@ -8156,7 +8368,9 @@
       openNextHint()
       return
     }
-    hintState.step = hintState.step === 2 ? 1 : 2
+    const maxStep = hintStepCount(hintState.hint)
+    const step = hintState.step || 1
+    hintState.step = step > 1 ? step - 1 : Math.min(maxStep, step + 1)
     renderHint()
   }
 
@@ -8508,7 +8722,7 @@
         autoNotes()
         return
       }
-      if (hintState && hintState.step === 2) openNextHint()
+      if (hintState && hintState.hint && hintState.step === hintStepCount(hintState.hint)) openNextHint()
       else advanceHint()
     })
     if (ui.btnHintTrace)
@@ -8529,24 +8743,27 @@
         autoNotes()
         return
       }
-      if (hintState && hintState.step === 2) openNextHint()
+      if (hintState && hintState.hint && hintState.step === hintStepCount(hintState.hint)) openNextHint()
       else advanceHint()
     }
 
     const hintPrev = () => {
       if (!hintState || !hintState.hint) return
-      if (hintState.step === 2) {
-        hintState.step = 1
+      const step = hintState.step || 1
+      if (step > 1) {
+        hintState.step = step - 1
         renderHint()
-      } else {
-        clearHint()
+        return
       }
+      clearHint()
     }
 
     const hintNextOrApply = () => {
       if (!hintState || !hintState.hint) return
-      if (hintState.step === 1) {
-        hintState.step = 2
+      const maxStep = hintStepCount(hintState.hint)
+      const step = hintState.step || 1
+      if (step < maxStep) {
+        hintState.step = step + 1
         renderHint()
         return
       }
@@ -8826,35 +9043,6 @@
       ui.btnTraceEnd.addEventListener("click", () => {
         traceEndOrExit()
       })
-    if (ui.btnTraceCompact)
-      ui.btnTraceCompact.addEventListener("click", () => {
-        if (!traceState) return
-        traceState.compact = !traceState.compact
-        if (traceState.compact) {
-          const tl = traceState.hint?.traceBranches?.[traceState.branchIndex]?.timeline || []
-          const cur = tl[traceState.stepIndex] || null
-          if (cur && cur.kind === "fill") {
-            let j = traceState.stepIndex
-            while (j > 0 && tl[j] && tl[j].kind === "fill") j--
-            if (j === traceState.stepIndex) {
-              j = traceState.stepIndex
-              while (j < tl.length - 1 && tl[j] && tl[j].kind === "fill") j++
-            }
-            traceState.stepIndex = clamp(j, 0, Math.max(0, tl.length - 1))
-          }
-        }
-        renderTraceDrawer()
-      })
-    if (ui.btnTraceConflict)
-      ui.btnTraceConflict.addEventListener("click", () => {
-        if (!traceState) return
-        const tl = traceState.hint?.traceBranches?.[traceState.branchIndex]?.timeline || []
-        const i = tl.findIndex((e) => e && e.kind === "conflict")
-        if (i >= 0) {
-          traceState.stepIndex = i
-          renderTraceDrawer()
-        }
-      })
 
     if (ui.btnPreviewUndo) ui.btnPreviewUndo.addEventListener("click", undoManualPreviewStep)
     if (ui.btnPreviewApply) ui.btnPreviewApply.addEventListener("click", applyManualPreview)
@@ -8895,9 +9083,10 @@
     })
 
     ui.btnHintClose.addEventListener("click", clearHint)
-    ui.btnHintNext.addEventListener("click", toggleHintStep)
+    if (ui.btnHintPrev) ui.btnHintPrev.addEventListener("click", hintPrev)
+    ui.btnHintNext.addEventListener("click", hintNextOrApply)
     ui.btnHintApply.addEventListener("click", () => {
-      if (!hintState || hintState.step !== 2) return
+      if (!hintState || !hintState.hint || hintState.step !== hintStepCount(hintState.hint)) return
       if (!activeState || activeState.paused) return
       const h = hintState.hint
       if (!h) return
@@ -9543,28 +9732,25 @@
       ) {
         e.preventDefault()
         const goPrev = e.code === "KeyW" || e.code === "KeyA" || e.key === "ArrowUp" || e.key === "ArrowLeft"
-        if (goPrev) {
-          if (hintState.step !== 1) {
-            hintState.step = 1
-            renderHint()
-          }
-          return
-        }
-        if (hintState.step !== 2) {
-          hintState.step = 2
+        const maxStep = hintStepCount(hintState.hint)
+        const step = hintState.step || 1
+        const next = goPrev ? Math.max(1, step - 1) : Math.min(maxStep, step + 1)
+        if (next !== step) {
+          hintState.step = next
           renderHint()
         }
         return
       }
 
+      if (hintOpen && e.code === "KeyQ") {
+        e.preventDefault()
+        hintPrev()
+        return
+      }
+
       if (hintOpen && (e.code === "KeyE" || e.key === "e" || e.key === "E")) {
         e.preventDefault()
-        if (hintState.step !== 2) {
-          hintState.step = 2
-          renderHint()
-          return
-        }
-        if (ui.btnHintApply && !ui.btnHintApply.disabled) ui.btnHintApply.click()
+        hintNextOrApply()
         return
       }
 

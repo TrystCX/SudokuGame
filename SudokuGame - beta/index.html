@@ -102,6 +102,7 @@
             </div>
             <div id="hint-message" class="hint-message"></div>
             <div class="hint-actions">
+              <button id="btn-hint-prev" class="ghost-btn hidden" type="button">上一步</button>
               <button id="btn-hint-next" class="ghost-btn" type="button">下一步</button>
               <button id="btn-hint-trace" class="ghost-btn hidden" type="button">推演</button>
               <button id="btn-hint-apply" class="primary-btn" type="button">填入</button>
@@ -115,8 +116,6 @@
           <div class="drawer-head">
             <div class="drawer-title">推演过程</div>
             <select id="trace-branch" class="drawer-select"></select>
-            <button id="btn-trace-compact" class="drawer-chip" type="button">简洁</button>
-            <button id="btn-trace-conflict" class="drawer-chip" type="button">矛盾</button>
             <button id="btn-trace-close" class="icon-btn" type="button" aria-label="关闭">
               <span class="icon">✕</span>
             </button>
@@ -289,6 +288,14 @@
                     <span class="keycap">↑</span><span class="keycap">↓</span><span class="keycap">←</span><span class="keycap">→</span>
                   </div>
                   <div class="hotkey-desc">提示面板/推演抽屉打开时：切换上一步/下一步</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">Q</span></div>
+                  <div class="hotkey-desc">提示面板：上一步</div>
+                </div>
+                <div class="hotkey-row">
+                  <div class="hotkey-keys"><span class="keycap">E</span></div>
+                  <div class="hotkey-desc">提示面板：下一步</div>
                 </div>
               </div>
 
