@@ -1666,7 +1666,7 @@
       ui.levelsViewport.innerHTML = `<div class="level-row"><div class="level-title">缺少 levels.js</div></div>`
       return
     }
-    levelTileHeight = levelsMode === "chapters" ? 86 : 66
+    levelTileHeight = levelsMode === "chapters" ? 98 : 66
     levelRowHeight = levelTileHeight + levelTileGap
     const totalCount = d[currentDiff].count
     const chapterStart = currentChapter * chapterSize
@@ -6645,6 +6645,8 @@
   }
 
   const hintBadgeText = (h) => {
+    const t = (h && h.tech) || ""
+    if (t === "need_notes" || t === "need_more_notes" || t === "note_conflict") return `提示 · ${hintTechLabel(h)}`
     const k = hintDifficultyKey(h)
     const s = hintDifficultyScore(h)
     const coef = Number.isFinite(s) ? s.toFixed(1) : "0.0"

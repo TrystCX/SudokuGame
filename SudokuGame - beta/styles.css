@@ -417,7 +417,7 @@ button{color:inherit}
 .level-tile.locked{opacity:.55}
 .level-tile.locked:active{transform:none}
 .level-tile.focus{outline:2px solid rgba(47, 116, 63, .55); outline-offset:2px}
-.level-tile .level-title{font-weight:750; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.level-tile .level-title{font-weight:750; max-width:100%; white-space:normal; word-break:break-word; line-height:1.15}
 .level-tile .level-meta{margin-top:6px}
 .level-row{
   height:44px;
@@ -438,10 +438,8 @@ button{color:inherit}
   border-radius:999px;
   border:1px solid var(--line);
   color:var(--muted);
-  white-space:nowrap;
-  max-width:100%;
-  overflow:hidden;
-  text-overflow:ellipsis;
+  white-space:normal;
+  word-break:break-word;
 }
 .tag.bad{border-color:rgba(75, 91, 78, .35); color:rgba(75, 91, 78, .9)}
 .tag.good{border-color:rgba(47, 116, 63, .45); color:var(--user)}
