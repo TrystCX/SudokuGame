@@ -29,6 +29,7 @@
   --user:#0a6e33;
   --note:#6e7b70;
   --note-same:#74B118;
+  --note-same-shadow:rgba(116, 177, 24, .24);
   --note-highlight:var(--primary-soft);
   --preview-accent:#3aa0ff;
   --preview-accent-soft:rgba(58, 160, 255, .14);
@@ -63,6 +64,7 @@
   --same-text:#ffffff;
   --user:#125cb2;
   --note-same:#2b79c2;
+  --note-same-shadow:rgba(43, 121, 194, .24);
   --note-highlight:var(--primary-soft);
 }
 :root[data-palette="orange"]{
@@ -82,6 +84,7 @@
   --same:#ff8a00;
   --user:#b35a00;
   --note-same:#ff8a00;
+  --note-same-shadow:rgba(255, 138, 0, .24);
 }
 :root[data-palette="white"]{
   --bg-base:#f6f7f9;
@@ -105,7 +108,8 @@
   --given:#101418;
   --user:#0a6e33;
   --note:#6e7b70;
-  --note-same:rgba(47, 116, 63, .55);
+  --note-same:#1f9f3a;
+  --note-same-shadow:rgba(31, 159, 58, .24);
   --note-highlight:var(--primary-soft);
 }
 :root[data-palette="black"]{
@@ -132,6 +136,7 @@
   --user:#B2B1B6;
   --note:#8a97a6;
   --note-same:#4E8D16;
+  --note-same-shadow:rgba(78, 141, 22, .24);
   --note-highlight:rgba(48, 125, 69, .18);
   --preview-accent:#ff8a00;
   --preview-accent-soft:rgba(255, 138, 0, .16);
@@ -758,7 +763,7 @@ button{color:inherit}
   box-shadow:none;
   text-shadow:0 0 8px rgba(72, 214, 140, .18);
 }
-.cell .notes span.same-note{color:var(--note-same); opacity:1; filter:brightness(1.05)}
+.cell .notes span.same-note{color:var(--note-same); opacity:1; font-weight:650; text-shadow:0 0 10px var(--note-same-shadow); filter:brightness(1.08)}
 .cell:nth-child(9n+3),
 .cell:nth-child(9n+6){border-right:2px solid rgba(15, 22, 29, .36)}
 .cell:nth-child(n+19):nth-child(-n+27),
@@ -1106,6 +1111,8 @@ button{color:inherit}
   font-variant-numeric:tabular-nums;
   font-size:calc(12px * var(--font-scale));
 }
+button.keycap{cursor:pointer}
+button.keycap.capturing{outline:2px solid var(--primary-border); outline-offset:2px; box-shadow:0 0 0 3px var(--primary-soft)}
 .setting-seg{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
 .setting-chip{height:36px; padding:0 12px; border-radius:999px; font-size:calc(12px * var(--font-scale))}
 .setting-chip.active{border-color:var(--primary-border); background:var(--primary-soft)}

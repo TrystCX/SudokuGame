@@ -53,7 +53,19 @@
       doubleClickFillSingleNote: false,
       highlightUnique: true,
       numberFirst: false,
-      showForcing: true,
+      showHotkeysHint: true,
+      keybinds: {
+        up: "KeyW",
+        left: "KeyA",
+        down: "KeyS",
+        right: "KeyD",
+        hintPrev: "KeyQ",
+        hintNext: "KeyE",
+        note: "KeyR",
+        lock: "KeyF",
+        undo: "KeyZ",
+        erase: "KeyX",
+      },
       devUnlocked: false,
       devMode: false,
       traceDrawerAutoOpened: false,
@@ -62,7 +74,8 @@
     if (!raw) return def
     const v = safeJsonParse(raw, def)
     const out = { ...def, ...v }
-    if (out.showForcing === undefined && v && typeof v === "object" && v.showForcingCell !== undefined) out.showForcing = v.showForcingCell
+    delete out.showForcing
+    delete out.showForcingCell
     return out
   }
 
@@ -447,12 +460,15 @@
     settingsPageHighlight: qs("#settings-page-highlight"),
     settingsPageTheme: qs("#settings-page-theme"),
     settingsPageHotkeys: qs("#settings-page-hotkeys"),
+    settingsPageKeyboardShortcuts: qs("#settings-page-keyboard-shortcuts"),
     settingsPageShare: qs("#settings-page-share"),
     settingsPageDev: qs("#settings-page-dev"),
     btnHighlightOpen: qs("#btn-highlight-open"),
     btnThemeOpen: qs("#btn-theme-open"),
     btnShareOpen: qs("#btn-share-open"),
     btnHotkeysOpen: qs("#btn-hotkeys-open"),
+    btnKeyboardShortcutsOpen: qs("#btn-keyboard-shortcuts-open"),
+    btnRestoreDefaultKeybinds: qs("#btn-restore-default-keybinds"),
     btnDevOpen: qs("#btn-dev-open"),
     btnDiffEasy: qs("#btn-diff-easy"),
     btnDiffMedium: qs("#btn-diff-medium"),
@@ -469,7 +485,20 @@
     settingDoubleClickFillNote: qs("#setting-double-click-fill-note"),
     settingHighlightUnique: qs("#setting-highlight-unique"),
     settingNumberFirst: qs("#setting-number-first"),
-    settingShowForcing: qs("#setting-show-forcing"),
+    btnBindUp: qs("#btn-bind-up"),
+    btnBindUp2: qs("#btn-bind-up2"),
+    btnBindDown: qs("#btn-bind-down"),
+    btnBindDown2: qs("#btn-bind-down2"),
+    btnBindLeft: qs("#btn-bind-left"),
+    btnBindLeft2: qs("#btn-bind-left2"),
+    btnBindRight: qs("#btn-bind-right"),
+    btnBindRight2: qs("#btn-bind-right2"),
+    btnBindHintPrev: qs("#btn-bind-hint-prev"),
+    btnBindHintNext: qs("#btn-bind-hint-next"),
+    btnBindNote: qs("#btn-bind-note"),
+    btnBindLock: qs("#btn-bind-lock"),
+    btnBindUndo: qs("#btn-bind-undo"),
+    btnBindErase: qs("#btn-bind-erase"),
     btnFontS: qs("#btn-font-s"),
     btnFontM: qs("#btn-font-m"),
     btnFontL: qs("#btn-font-l"),
@@ -548,6 +577,8 @@
   let focusLevel = -1
   let hintState = null
   let hintSvg = null
+  let keybindCapture = ""
+  let keybindCaptureBtn = null
 
   const setLevelsStatus = (text) => {
     if (!ui.levelsStatus) return
@@ -557,8 +588,16 @@
   }
 
   const applyBrightness = () => {
-    const v = clamp(Number(settings.uiBrightness || 100), 70, 110)
-    const ratio = v / 100
+    const raw = clamp(Number(settings.uiBrightness || 100), 70, 120)
+    const v = clamp(Math.round(raw / 5) * 5, 70, 120)
+    const ratio = (() => {
+      if (v <= 100) {
+        const t = (v - 70) / 30
+        return 0.7 + Math.pow(Math.max(0, Math.min(1, t)), 1.25) * 0.3
+      }
+      const t = (v - 100) / 20
+      return 1.0 + Math.pow(Math.max(0, Math.min(1, t)), 1.25) * 0.2
+    })()
     document.documentElement.style.setProperty("--ui-brightness", String(ratio))
     if (ui.settingBrightnessValue) ui.settingBrightnessValue.textContent = `${Math.round(v)}%`
   }
@@ -593,10 +632,26 @@
     document.documentElement.dataset.font = k
   }
 
+  const keyLabel = (code) => {
+    const s = String(code || "")
+    if (!s) return ""
+    if (s.startsWith("Key") && s.length === 4) return s.slice(3)
+    if (s.startsWith("Key") && s.length > 4) return s.slice(3)
+    if (s.startsWith("Digit")) return s.slice(5)
+    if (s === "Space") return "Space"
+    if (s === "Escape") return "Esc"
+    if (s === "ArrowUp") return "↑"
+    if (s === "ArrowDown") return "↓"
+    if (s === "ArrowLeft") return "←"
+    if (s === "ArrowRight") return "→"
+    if (/^Numpad[0-9]$/.test(s)) return "Num" + s.slice(6)
+    return s
+  }
+
   const applySettingsToUI = () => {
     if (!settings.customTheme) settings.customTheme = { enabled: false, vars: {} }
     ui.settingSound.checked = !!settings.sound
-    ui.settingBrightness.value = String(clamp(Number(settings.uiBrightness || 100), 70, 110))
+    ui.settingBrightness.value = String(clamp(Math.round(clamp(Number(settings.uiBrightness || 100), 70, 120) / 5) * 5, 70, 120))
     ui.settingHighlightRegion.checked = !!settings.highlightRegion
     ui.settingHighlightSame.checked = !!settings.highlightSame
     ui.settingHighlightSameNotes.checked = !!settings.highlightSameNotes
@@ -604,8 +659,26 @@
     ui.settingDoubleClickFillNote.checked = !!settings.doubleClickFillSingleNote
     ui.settingHighlightUnique.checked = !!settings.highlightUnique
     ui.settingNumberFirst.checked = !!settings.numberFirst
-    if (ui.settingShowForcing) ui.settingShowForcing.checked = settings.showForcing !== false
+    const kb = settings.keybinds || {}
+    if (ui.btnBindUp) ui.btnBindUp.textContent = keyLabel(kb.up || "KeyW")
+    if (ui.btnBindUp2) ui.btnBindUp2.textContent = keyLabel(kb.up2 || "ArrowUp")
+    if (ui.btnBindDown) ui.btnBindDown.textContent = keyLabel(kb.down || "KeyS")
+    if (ui.btnBindDown2) ui.btnBindDown2.textContent = keyLabel(kb.down2 || "ArrowDown")
+    if (ui.btnBindLeft) ui.btnBindLeft.textContent = keyLabel(kb.left || "KeyA")
+    if (ui.btnBindLeft2) ui.btnBindLeft2.textContent = keyLabel(kb.left2 || "ArrowLeft")
+    if (ui.btnBindRight) ui.btnBindRight.textContent = keyLabel(kb.right || "KeyD")
+    if (ui.btnBindRight2) ui.btnBindRight2.textContent = keyLabel(kb.right2 || "ArrowRight")
+    if (ui.btnBindHintPrev) ui.btnBindHintPrev.textContent = keyLabel(kb.hintPrev || "KeyQ")
+    if (ui.btnBindHintNext) ui.btnBindHintNext.textContent = keyLabel(kb.hintNext || "KeyE")
+    if (ui.btnBindNote) ui.btnBindNote.textContent = keyLabel(kb.note || "KeyR")
+    if (ui.btnBindLock) ui.btnBindLock.textContent = keyLabel(kb.lock || "KeyF")
+    if (ui.btnBindUndo) ui.btnBindUndo.textContent = keyLabel(kb.undo || "KeyZ")
+    if (ui.btnBindErase) ui.btnBindErase.textContent = keyLabel(kb.erase || "KeyX")
     ui.settingRowHighlightSameNotesMode.classList.toggle("hidden", !settings.highlightSameNotes)
+    if (ui.settingRowHighlightSameNotesMode) {
+      const lbl = ui.settingRowHighlightSameNotesMode.querySelector(".setting-label")
+      if (lbl) lbl.textContent = settings.highlightSameNotesDigit ? "高亮相同笔记：数字" : "高亮相同笔记：格子"
+    }
     if (ui.btnDevOpen) ui.btnDevOpen.classList.toggle("hidden", !settings.devUnlocked)
     if (ui.settingRowDevmode) ui.settingRowDevmode.classList.toggle("hidden", !settings.devUnlocked)
     if (ui.settingDevmode) ui.settingDevmode.checked = !!settings.devMode
@@ -652,21 +725,24 @@
 
   let settingsPage = "main"
   const setSettingsPage = (p) => {
-    settingsPage = ["main", "highlight", "theme", "hotkeys", "share", "dev"].includes(p) ? p : "main"
+    settingsPage = ["main", "highlight", "theme", "hotkeys", "keyboard-shortcuts", "share", "dev"].includes(p) ? p : "main"
     if (ui.settingsPageMain) ui.settingsPageMain.classList.toggle("hidden", settingsPage !== "main")
     if (ui.settingsPageHighlight) ui.settingsPageHighlight.classList.toggle("hidden", settingsPage !== "highlight")
     if (ui.settingsPageTheme) ui.settingsPageTheme.classList.toggle("hidden", settingsPage !== "theme")
     if (ui.settingsPageHotkeys) ui.settingsPageHotkeys.classList.toggle("hidden", settingsPage !== "hotkeys")
+    if (ui.settingsPageKeyboardShortcuts) ui.settingsPageKeyboardShortcuts.classList.toggle("hidden", settingsPage !== "keyboard-shortcuts")
     if (ui.settingsPageShare) ui.settingsPageShare.classList.toggle("hidden", settingsPage !== "share")
     if (ui.settingsPageDev) ui.settingsPageDev.classList.toggle("hidden", settingsPage !== "dev")
     if (ui.btnSettingsBack) ui.btnSettingsBack.classList.toggle("hidden", settingsPage === "main")
     if (ui.settingsTitle) {
       ui.settingsTitle.textContent =
         settingsPage === "theme"
-          ? "主题"
+          ? "主题设置"
           : settingsPage === "highlight"
             ? "高亮突出设置"
             : settingsPage === "hotkeys"
+              ? "操作设置"
+            : settingsPage === "keyboard-shortcuts"
               ? "键盘快捷键"
             : settingsPage === "share"
               ? "分享局面"
@@ -3235,6 +3311,34 @@
       if ((t1 === "row" && t2 === "col") || (t1 === "col" && t2 === "row")) return "two_string_kite"
       return "turbot"
     }
+    const isConjugateWeak = (a, b, bit) => {
+      if (a < 0 || b < 0) return false
+      const inUnit = (cells) => {
+        let cnt = 0
+        let hasA = false
+        let hasB = false
+        for (const i of cells) {
+          if (givens[i]) continue
+          if (grid[i] !== 0) continue
+          if (!(legal[i] & bit)) continue
+          cnt++
+          if (i === a) hasA = true
+          if (i === b) hasB = true
+          if (cnt > 2) return false
+        }
+        return cnt === 2 && hasA && hasB
+      }
+      const ar = (a / 9) | 0
+      const ac = a % 9
+      const br = (b / 9) | 0
+      const bc = b % 9
+      if (ar === br && inUnit(rowCells[ar])) return true
+      if (ac === bc && inUnit(colCells[ac])) return true
+      const ab = ((ar / 3) | 0) * 3 + ((ac / 3) | 0)
+      const bb = ((br / 3) | 0) * 3 + ((bc / 3) | 0)
+      if (ab === bb && inUnit(boxCells[ab])) return true
+      return false
+    }
 
     for (let d = 1; d <= 9; d++) {
       const bit = 1 << (d - 1)
@@ -3288,6 +3392,8 @@
               const pEnd = new Set(peersOf[s2.end])
               const chainSet = new Set([s1.end, s1.mid, s2.mid, s2.end])
               const targets = []
+              const variant = classify(l1.houseType, l2.houseType)
+              const allConjugate = isConjugateWeak(s1.mid, s2.mid, bit)
               for (const t of peersOf[s1.end]) {
                 if (!pEnd.has(t)) continue
                 if (chainSet.has(t)) continue
@@ -3296,6 +3402,63 @@
                 if (elim[t] & bit) targets.push(t)
               }
               if (!targets.length) continue
+              if (variant === "skyscraper") {
+                const chain = [s1.end, s1.mid, s2.mid, s2.end]
+                const m0 = legal[chain[0]] || 0
+                if (bitCount(m0) === 2 && (m0 & bit)) {
+                  let okPair = true
+                  for (const idx of chain) {
+                    if (idx < 0) {
+                      okPair = false
+                      break
+                    }
+                    if (givens[idx] || grid[idx] !== 0) {
+                      okPair = false
+                      break
+                    }
+                    const mm = legal[idx] || 0
+                    if (mm !== m0 || bitCount(mm) !== 2) {
+                      okPair = false
+                      break
+                    }
+                  }
+                  if (okPair) {
+                    const otherBit = m0 & ~bit
+                    if (otherBit && (otherBit & (otherBit - 1)) === 0) {
+                      const otherDigit = (Math.log2(otherBit) | 0) + 1
+                      if (d < otherDigit) {
+                        const pairMask = bit | otherBit
+                        const targets2 = []
+                        for (const t of peersOf[s1.end]) {
+                          if (!pEnd.has(t)) continue
+                          if (chainSet.has(t)) continue
+                          if (givens[t]) continue
+                          if (grid[t] !== 0) continue
+                          if (elim[t] & pairMask) targets2.push(t)
+                        }
+                        if (targets2.length) {
+                          return {
+                            type: "eliminate",
+                            tech: "turbot_fish",
+                            digit: d,
+                            otherDigit,
+                            elimMask: pairMask,
+                            unitCells: [],
+                            sourceCells: [s1.end, s1.mid, s2.mid, s2.end],
+                            targetCells: targets2,
+                            strong1: [l1.a, l1.b],
+                            strong2: [l2.a, l2.b],
+                            weak: [s1.mid, s2.mid],
+                            ends: [s1.end, s2.end],
+                            allConjugate,
+                            variant: "skyscraper_bivalue",
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
               return {
                 type: "eliminate",
                 tech: "turbot_fish",
@@ -3308,7 +3471,8 @@
                 strong2: [l2.a, l2.b],
                 weak: [s1.mid, s2.mid],
                 ends: [s1.end, s2.end],
-                variant: classify(l1.houseType, l2.houseType),
+                allConjugate,
+                variant,
               }
             }
           }
@@ -6220,7 +6384,7 @@
     if (h16j) return { type: "action", tech: "need_notes", action: allowAutoNotes ? "auto_notes" : "note_mode", nextTech: h16j.tech }
     const h16k = findAlignedTripletExclusion(grid, givens, legal)
     if (h16k) return { type: "action", tech: "need_notes", action: allowAutoNotes ? "auto_notes" : "note_mode", nextTech: h16k.tech }
-    const h16l = settings.showForcing !== false ? findNishioForcingChains(grid, givens, legal) : null
+    const h16l = findNishioForcingChains(grid, givens, legal)
     if (h16l && h16l.type === "eliminate")
       return { type: "action", tech: "need_notes", action: allowAutoNotes ? "auto_notes" : "note_mode", nextTech: h16l.tech }
     const h17 = findXChain(grid, givens, legal, elim)
@@ -6354,12 +6518,12 @@
       { min: 6.5, cost: "high", run: () => findXCycle(grid, givens, cand, elim) },
       { min: 6.6, cost: "high", run: () => findSixStrongLinks(grid, givens, cand, elim) },
       { min: 6.6, cost: "high", run: () => findXChain(grid, givens, cand, elim) },
-      { min: 6.8, run: () => (settings.showForcing !== false ? findForcingCell(grid, givens, cand, activeState.notes) : null) },
+      { min: 6.8, run: () => findForcingCell(grid, givens, cand, activeState.notes) },
       { min: 7.0, cost: "high", run: () => findSevenStrongLinks(grid, givens, cand, elim) },
       { min: 7.0, cost: "high", run: () => findXYCycle(grid, givens, cand, elim) },
       { min: 7.4, cost: "extreme", run: () => findEightStrongLinks(grid, givens, cand, elim) },
       { min: 7.5, cost: "extreme", run: () => findAlignedTripletExclusion(grid, givens, cand, elim) },
-      { min: 7.5, run: () => (settings.showForcing !== false ? findNishioForcingChains(grid, givens, cand) : null) },
+      { min: 7.5, run: () => findNishioForcingChains(grid, givens, cand) },
     ]
 
     const searchStartTime = performance.now()
@@ -6407,12 +6571,6 @@
       if (shouldPromptNeedNotes && bestScore >= 3.0) return findNeedNotesHint(grid, givens, legal, allowAutoNotes)
       if (shouldPromptNeedMoreNotes && bestScore >= 3.0) return findNeedMoreNotesHint(grid, givens, legal, allowAutoNotes)
       return best
-    }
-    if (settings.showForcing === false) {
-      const fc = findForcingCell(grid, givens, legal, activeState.notes)
-      if (fc) return { type: "action", tech: "forcing_disabled", action: "enable_forcing" }
-      const hn = findNishioForcingChains(grid, givens, legal)
-      if (hn) return { type: "action", tech: "forcing_disabled", action: "enable_forcing" }
     }
     if (shouldPromptNeedNotes) return findNeedNotesHint(grid, givens, legal, allowAutoNotes)
     if (shouldPromptNeedMoreNotes) return findNeedMoreNotesHint(grid, givens, legal, allowAutoNotes)
@@ -6510,6 +6668,7 @@
     if (t === "turbot_fish") {
       const v = h.variant || ""
       if (v === "skyscraper") return 4.0
+      if (v === "skyscraper_bivalue") return 4.0
       if (v === "two_string_kite") return 4.1
       if (v === "empty_rectangle") return 4.2
       return 4.2
@@ -6583,7 +6742,6 @@
   const hintTechLabel = (h) => {
     if (!h) return "提示"
     const t = h.tech || ""
-    if (t === "forcing_disabled") return "已关闭强制推理"
     if (t === "need_notes") return "先记笔记"
     if (t === "need_more_notes") return "补全笔记"
     if (t === "note_conflict") return "笔记冲突"
@@ -6616,6 +6774,7 @@
     if (t === "turbot_fish") {
       const v = h.variant || ""
       if (v === "skyscraper") return "涡轮鱼·摩天楼（Skyscraper）"
+      if (v === "skyscraper_bivalue") return "涡轮鱼·摩天楼（双强链）"
       if (v === "two_string_kite") return "涡轮鱼·双强链（2-String Kite）"
       if (v === "empty_rectangle") return "涡轮鱼·空矩形（Empty Rectangle）"
       return "涡轮鱼（Turbot Fish）"
@@ -6938,7 +7097,19 @@
       const wk = h.weak || []
       const a = wk[0] ?? -1
       const b = wk[1] ?? -1
-      if (a >= 0 && b >= 0) hintSvg.appendChild(mkLine(a, b, weakStroke, linkWidth, "4 3"))
+      if (a >= 0 && b >= 0) {
+        if (h.allConjugate) {
+          if (isAdj(a, b)) {
+            const beam = mkAdjStrongBeam(a, b, linkWidth, "wire-strong", h.digit)
+            for (const el of beam.paths) hintSvg.appendChild(el)
+            for (const el of beam.dots) hintSvg.appendChild(el)
+          } else {
+            hintSvg.appendChild(mkLine(a, b, strongStroke, linkWidth, ""))
+          }
+        } else {
+          hintSvg.appendChild(mkLine(a, b, weakStroke, linkWidth, "4 3"))
+        }
+      }
       return
     }
     if (
@@ -7551,10 +7722,6 @@
     const idx = h.idx ?? -1
     const r = idx >= 0 ? ((idx / 9) | 0) + 1 : 0
     const c = idx >= 0 ? (idx % 9) + 1 : 0
-    if (h.tech === "forcing_disabled") {
-      if (step === 1) return "当前局面需要强制推理才能继续，但你已关闭该类提示。"
-      return "点击“开启强制推理”以继续获取提示。"
-    }
     if (h.tech === "need_notes") {
       if (step === 1) return `检测到可用提示：${techNameForPrompt(h.nextTech)}（需要笔记）。`
       if (h.action === "auto_notes") return "点击“一键笔记”生成候选。"
@@ -7859,6 +8026,15 @@
     }
     if (h.tech === "turbot_fish") {
       const v = h.variant || ""
+      if (v === "skyscraper_bivalue") {
+        const a = h.digit || 0
+        const b = h.otherDigit || 0
+        if (step === 1) {
+          const tag = h.allConjugate ? "·全共轭特例" : "·双强链"
+          return `这里形成了 涡轮鱼（摩天楼${tag}）：四个关键格都只剩 {${a}, ${b}} 两个候选，因此链的两端必定一个填 ${a}、另一个填 ${b}。`
+        }
+        return `因此同时“看见”两端的格子里，候选 ${a} 与 ${b} 都可以排除。`
+      }
       if (v === "empty_rectangle") {
         const b = h.boxIndex ?? -1
         const boxN = b >= 0 ? b + 1 : 0
@@ -7868,8 +8044,11 @@
         return `第二步：交叉推导。红色强链会迫使空矩形沿另一条“臂”成立，因此交叉点处的候选 ${h.digit} 都可以排除。`
       }
       if (v === "skyscraper") {
-        if (step === 1)
+        if (step === 1) {
+          if (h.allConjugate)
+            return `这里形成了 涡轮鱼（摩天楼形态·全共轭特例）：数字 ${h.digit} 的两条强链之间的连接也为强链，因此整条链为强链；链的两端必然有一个格子填 ${h.digit}。`
           return `这里形成了 涡轮鱼（摩天楼形态）：数字 ${h.digit} 由两条红色强链支撑，并通过一条蓝色弱链相连。因此链的两端必然有一个格子填 ${h.digit}。`
+        }
         return `因此同时“看见”两端的格子里，候选 ${h.digit} 都可以排除。`
       }
       if (v === "two_string_kite") {
@@ -7979,9 +8158,9 @@
         const cc = Array.from(new Set(vs.map((i) => i % 9))).sort((a, b) => a - b)
         if (step === 1) {
           if (h.tech === "xwing_row") {
-            return `第 1 步：在第 ${rr[0] + 1} 行与第 ${rr[1] + 1} 行里，数字 ${h.digit} 都只有两个候选格；这四个候选格构成一个矩形 X-Wing。数字 ${h.digit} 必然在该矩形的任意两个对角格。`
+            return `第 1 步：在第 ${rr[0] + 1} 行与第 ${rr[1] + 1} 行里，数字 ${h.digit} 都只有两个候选格；这四个候选格构成一个矩形 X-Wing。数字 ${h.digit} 的分布有两种情况（红蓝高亮）。`
           }
-          return `第 1 步：在第 ${cc[0] + 1} 列与第 ${cc[1] + 1} 列里，数字 ${h.digit} 都只有两个候选格；这四个候选格构成一个矩形 X-Wing。数字 ${h.digit} 必然在该矩形的任意两个对角格。`
+          return `第 1 步：在第 ${cc[0] + 1} 列与第 ${cc[1] + 1} 列里，数字 ${h.digit} 都只有两个候选格；这四个候选格构成一个矩形 X-Wing。数字 ${h.digit} 的分布有两种情况（红蓝高亮）。`
         }
         if (h.tech === "xwing_row") return `第 2 步：因此第 ${cc[0] + 1} 列和第 ${cc[1] + 1} 列的其他位置，候选 ${h.digit} 都可以被排除。`
         return `第 2 步：因此第 ${rr[0] + 1} 行和第 ${rr[1] + 1} 行的其他位置，候选 ${h.digit} 都可以被排除。`
@@ -8401,9 +8580,7 @@
           ? "一键笔记"
           : h.action === "fill_notes"
             ? "补全笔记"
-            : h.action === "enable_forcing"
-              ? "开启强制推理"
-              : "笔记"
+            : "笔记"
     else ui.btnHintApply.textContent = h.type === "eliminate" ? (hasAnyNotes ? "排除" : "知道了") : "填入"
     ui.btnHintApply.disabled = false
     if (step === maxStep && h.type === "eliminate") {
@@ -8996,6 +9173,16 @@
       if (e.ctrlKey || e.metaKey || e.altKey) return
       const t = e.target
       if (t && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return
+      const kb = settings.keybinds || {}
+      const upK = kb.up || "KeyW"
+      const up2K = kb.up2 || "ArrowUp"
+      const downK = kb.down || "KeyS"
+      const down2K = kb.down2 || "ArrowDown"
+      const leftK = kb.left || "KeyA"
+      const left2K = kb.left2 || "ArrowLeft"
+      const rightK = kb.right || "KeyD"
+      const right2K = kb.right2 || "ArrowRight"
+      const lockK = kb.lock || "KeyF"
 
       if (ui.traceDrawer && !ui.traceDrawer.classList.contains("hidden")) {
         if (e.key === "Escape") {
@@ -9003,17 +9190,17 @@
           e.preventDefault()
           return
         }
-        if (e.code === "KeyW" || e.code === "KeyA" || e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        if (e.code === upK || e.code === leftK || e.code === up2K || e.code === left2K) {
           tracePrev()
           e.preventDefault()
           return
         }
-        if (e.code === "KeyS" || e.code === "KeyD" || e.key === "ArrowDown" || e.key === "ArrowRight") {
+        if (e.code === downK || e.code === rightK || e.code === down2K || e.code === right2K) {
           traceNext()
           e.preventDefault()
           return
         }
-        if (e.code === "KeyF") {
+        if (e.code === lockK) {
           traceEndOrExit()
           e.preventDefault()
           return
@@ -9022,13 +9209,13 @@
       }
 
       const navDir =
-        e.code === "KeyW" || e.key === "ArrowUp"
+        e.code === upK || e.code === up2K
           ? { x: 0, y: -1 }
-          : e.code === "KeyS" || e.key === "ArrowDown"
+          : e.code === downK || e.code === down2K
             ? { x: 0, y: 1 }
-            : e.code === "KeyA" || e.key === "ArrowLeft"
+            : e.code === leftK || e.code === left2K
               ? { x: -1, y: 0 }
-              : e.code === "KeyD" || e.key === "ArrowRight"
+              : e.code === rightK || e.code === right2K
                 ? { x: 1, y: 0 }
                 : null
       if (navDir) {
@@ -9112,7 +9299,7 @@
         return
       }
 
-      if (e.code === "KeyF") {
+      if (e.code === lockK) {
         if (hintState && ui.hintPanel && !ui.hintPanel.classList.contains("hidden")) {
           hintNextOrApply()
           e.preventDefault()
@@ -9198,11 +9385,6 @@
         if (h.action === "auto_notes") {
           activeState.suppressNotesPrompt = false
           autoNotes()
-        } else if (h.action === "enable_forcing") {
-          settings.showForcing = true
-          saveSettings(settings)
-          applySettingsToUI()
-          toast("已开启强制推理")
         } else if (h.action === "fill_notes") {
           const legal = buildLegalCandidateMasks(activeState.grid, activeState.givens)
           let changed = 0
@@ -9319,11 +9501,16 @@
     ui.btnSettings2.addEventListener("click", open)
     ui.btnSettings3.addEventListener("click", open)
     ui.btnSettingsClose.addEventListener("click", closeSettings)
-    ui.modalBackdrop.addEventListener("click", closeSettings)
-    if (ui.btnSettingsBack) ui.btnSettingsBack.addEventListener("click", () => setSettingsPage("main"))
+    if (ui.btnSettingsBack) {
+      ui.btnSettingsBack.addEventListener("click", () => {
+        if (settingsPage === "keyboard-shortcuts") setSettingsPage("hotkeys")
+        else setSettingsPage("main")
+      })
+    }
     if (ui.btnHighlightOpen) ui.btnHighlightOpen.addEventListener("click", () => setSettingsPage("highlight"))
     if (ui.btnThemeOpen) ui.btnThemeOpen.addEventListener("click", () => setSettingsPage("theme"))
     if (ui.btnHotkeysOpen) ui.btnHotkeysOpen.addEventListener("click", () => setSettingsPage("hotkeys"))
+    if (ui.btnKeyboardShortcutsOpen) ui.btnKeyboardShortcutsOpen.addEventListener("click", () => setSettingsPage("keyboard-shortcuts"))
     if (ui.btnShareOpen) ui.btnShareOpen.addEventListener("click", () => setSettingsPage("share"))
     if (ui.btnDevOpen) ui.btnDevOpen.addEventListener("click", () => setSettingsPage("dev"))
 
@@ -9370,7 +9557,8 @@
     }
     const bindRange = (el, key, { min, max }) => {
       const apply = () => {
-        settings[key] = clamp(Number(el.value), min, max)
+        const raw = clamp(Number(el.value), min, max)
+        settings[key] = clamp(Math.round(raw / 5) * 5, min, max)
         saveSettings(settings)
         applyBrightness()
       }
@@ -9378,7 +9566,7 @@
       el.addEventListener("change", apply)
     }
     bindSetting(ui.settingSound, "sound")
-    bindRange(ui.settingBrightness, "uiBrightness", { min: 70, max: 110 })
+    bindRange(ui.settingBrightness, "uiBrightness", { min: 70, max: 120 })
     bindSetting(ui.settingHighlightRegion, "highlightRegion")
     bindSetting(ui.settingHighlightSame, "highlightSame")
     bindSetting(ui.settingHighlightSameNotes, "highlightSameNotes")
@@ -9386,13 +9574,6 @@
     bindSetting(ui.settingDoubleClickFillNote, "doubleClickFillSingleNote")
     bindSetting(ui.settingHighlightUnique, "highlightUnique")
     bindSetting(ui.settingNumberFirst, "numberFirst")
-    if (ui.settingShowForcing) {
-      ui.settingShowForcing.addEventListener("change", () => {
-        settings.showForcing = !!ui.settingShowForcing.checked
-        saveSettings(settings)
-        applySettingsToUI()
-      })
-    }
     const bindThemeButton = (el, key, value) => {
       if (!el) return
       el.addEventListener("click", () => {
@@ -9409,6 +9590,78 @@
     bindThemeButton(ui.btnPaletteOrange, "palette", "orange")
     bindThemeButton(ui.btnPaletteWhite, "palette", "white")
     bindThemeButton(ui.btnPaletteBlack, "palette", "black")
+
+    const startKeyCapture = (k, btn) => {
+      keybindCapture = k
+      if (keybindCaptureBtn) keybindCaptureBtn.classList.remove("capturing")
+      keybindCaptureBtn = btn
+      if (keybindCaptureBtn) keybindCaptureBtn.classList.add("capturing")
+      toast("按下要绑定的按键")
+    }
+    const stopKeyCapture = () => {
+      keybindCapture = ""
+      if (keybindCaptureBtn) keybindCaptureBtn.classList.remove("capturing")
+      keybindCaptureBtn = null
+    }
+    const bindKeyButton = (btn, k) => {
+      if (!btn) return
+      btn.addEventListener("click", () => startKeyCapture(k, btn))
+    }
+    bindKeyButton(ui.btnBindUp, "up")
+    bindKeyButton(ui.btnBindUp2, "up2")
+    bindKeyButton(ui.btnBindDown, "down")
+    bindKeyButton(ui.btnBindDown2, "down2")
+    bindKeyButton(ui.btnBindLeft, "left")
+    bindKeyButton(ui.btnBindLeft2, "left2")
+    bindKeyButton(ui.btnBindRight, "right")
+    bindKeyButton(ui.btnBindRight2, "right2")
+    bindKeyButton(ui.btnBindHintPrev, "hintPrev")
+    bindKeyButton(ui.btnBindHintNext, "hintNext")
+    bindKeyButton(ui.btnBindNote, "note")
+    bindKeyButton(ui.btnBindLock, "lock")
+    bindKeyButton(ui.btnBindUndo, "undo")
+    bindKeyButton(ui.btnBindErase, "erase")
+
+    if (ui.btnRestoreDefaultKeybinds) {
+      ui.btnRestoreDefaultKeybinds.addEventListener("click", () => {
+        settings.keybinds = {
+          up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD",
+          up2: "ArrowUp", down2: "ArrowDown", left2: "ArrowLeft", right2: "ArrowRight",
+          hintPrev: "KeyQ", hintNext: "KeyE",
+          note: "KeyR", lock: "KeyF", undo: "KeyZ", erase: "KeyX"
+        }
+        saveSettings(settings)
+        applySettingsToUI()
+      })
+    }
+
+    window.addEventListener(
+      "keydown",
+      (e) => {
+      if (!keybindCapture) return
+      if (!ui.settingsModal || ui.settingsModal.classList.contains("hidden")) {
+        stopKeyCapture()
+        return
+      }
+      if (e.key === "Escape") {
+        e.preventDefault()
+        e.stopPropagation()
+        stopKeyCapture()
+        return
+      }
+      const code = e.code
+      if (!code) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (!settings.keybinds) settings.keybinds = {}
+      settings.keybinds[keybindCapture] = code
+      saveSettings(settings)
+      applySettingsToUI()
+      toast(`已设置为 ${keyLabel(code)}`)
+      stopKeyCapture()
+      },
+      true
+    )
     if (ui.settingDevmode) {
       ui.settingDevmode.addEventListener("change", () => {
         settings.devMode = !!ui.settingDevmode.checked
@@ -9821,21 +10074,24 @@
       const t = e.target
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
       if (ui.traceDrawer && !ui.traceDrawer.classList.contains("hidden")) return
+      const kb = settings.keybinds || {}
+      const codeOf = (k, def) => kb[k] || def
+      const isCode = (k, def) => e.code === codeOf(k, def)
 
       const hintOpen = !!(ui.hintPanel && !ui.hintPanel.classList.contains("hidden") && hintState && hintState.hint)
       if (
         hintOpen &&
-        (e.code === "KeyW" ||
-          e.code === "KeyA" ||
-          e.code === "KeyS" ||
-          e.code === "KeyD" ||
-          e.key === "ArrowUp" ||
-          e.key === "ArrowDown" ||
-          e.key === "ArrowLeft" ||
-          e.key === "ArrowRight")
+        (isCode("up", "KeyW") ||
+          isCode("left", "KeyA") ||
+          isCode("down", "KeyS") ||
+          isCode("right", "KeyD") ||
+          isCode("up2", "ArrowUp") ||
+          isCode("down2", "ArrowDown") ||
+          isCode("left2", "ArrowLeft") ||
+          isCode("right2", "ArrowRight"))
       ) {
         e.preventDefault()
-        const goPrev = e.code === "KeyW" || e.code === "KeyA" || e.key === "ArrowUp" || e.key === "ArrowLeft"
+        const goPrev = isCode("up", "KeyW") || isCode("left", "KeyA") || isCode("up2", "ArrowUp") || isCode("left2", "ArrowLeft")
         const maxStep = hintStepCount(hintState.hint)
         const step = hintState.step || 1
         const next = goPrev ? Math.max(1, step - 1) : Math.min(maxStep, step + 1)
@@ -9846,34 +10102,34 @@
         return
       }
 
-      if (hintOpen && e.code === "KeyQ") {
+      if (hintOpen && isCode("hintPrev", "KeyQ")) {
         e.preventDefault()
         hintPrev()
         return
       }
 
-      if (hintOpen && (e.code === "KeyE" || e.key === "e" || e.key === "E")) {
+      if (hintOpen && isCode("hintNext", "KeyE")) {
         e.preventDefault()
         hintNextOrApply()
         return
       }
 
-      if (e.code === "KeyR") {
+      if (isCode("note", "KeyR")) {
         e.preventDefault()
         if (ui.btnNote) ui.btnNote.click()
         return
       }
-      if (e.code === "KeyZ") {
+      if (isCode("undo", "KeyZ")) {
         e.preventDefault()
         if (ui.btnUndo) ui.btnUndo.click()
         return
       }
-      if (e.code === "KeyX") {
+      if (isCode("erase", "KeyX")) {
         e.preventDefault()
         if (ui.btnErase) ui.btnErase.click()
         return
       }
-      if (e.code === "KeyE" || e.key === "e" || e.key === "E") {
+      if (isCode("hintNext", "KeyE")) {
         if (activeState.lockedDigit) {
           e.preventDefault()
           e.stopPropagation()
@@ -9911,14 +10167,14 @@
         }
       }
       if (
-        e.code === "KeyW" ||
-        e.code === "KeyA" ||
-        e.code === "KeyS" ||
-        e.code === "KeyD" ||
-        e.key === "ArrowUp" ||
-        e.key === "ArrowDown" ||
-        e.key === "ArrowLeft" ||
-        e.key === "ArrowRight"
+        isCode("up", "KeyW") ||
+        isCode("left", "KeyA") ||
+        isCode("down", "KeyS") ||
+        isCode("right", "KeyD") ||
+        isCode("up2", "ArrowUp") ||
+        isCode("down2", "ArrowDown") ||
+        isCode("left2", "ArrowLeft") ||
+        isCode("right2", "ArrowRight")
       ) {
         e.preventDefault()
         let idx = activeState.selected ?? -1
@@ -9935,10 +10191,10 @@
         let c = idx % 9
         
         if (!isResuming) {
-          if (e.code === "KeyW" || e.key === "ArrowUp") r = Math.max(0, r - 1)
-          else if (e.code === "KeyS" || e.key === "ArrowDown") r = Math.min(8, r + 1)
-          else if (e.code === "KeyA" || e.key === "ArrowLeft") c = Math.max(0, c - 1)
-          else if (e.code === "KeyD" || e.key === "ArrowRight") c = Math.min(8, c + 1)
+          if (isCode("up", "KeyW") || isCode("up2", "ArrowUp")) r = Math.max(0, r - 1)
+          else if (isCode("down", "KeyS") || isCode("down2", "ArrowDown")) r = Math.min(8, r + 1)
+          else if (isCode("left", "KeyA") || isCode("left2", "ArrowLeft")) c = Math.max(0, c - 1)
+          else if (isCode("right", "KeyD") || isCode("right2", "ArrowRight")) c = Math.min(8, c + 1)
         }
         
         activeState.selected = r * 9 + c

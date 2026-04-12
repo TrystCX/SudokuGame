@@ -163,28 +163,6 @@
                   <span class="slider"></span>
                 </label>
               </div>
-              <div class="setting-row">
-                <div class="setting-label">双击自动填入唯一笔记</div>
-                <label class="switch">
-                  <input id="setting-double-click-fill-note" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">选数优先</div>
-                <label class="switch">
-                  <input id="setting-number-first" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <div class="setting-row">
-                <div class="setting-label">显示强制推理链</div>
-                <label class="switch">
-                  <input id="setting-show-forcing" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-
               <div class="divider"></div>
 
               <button id="btn-highlight-open" class="setting-nav" type="button">
@@ -192,7 +170,7 @@
                 <div class="setting-nav-chev">&gt;</div>
               </button>
               <button id="btn-theme-open" class="setting-nav" type="button">
-                <div class="setting-nav-label">主题</div>
+                <div class="setting-nav-label">主题设置</div>
                 <div class="setting-nav-chev">&gt;</div>
               </button>
               <button id="btn-archive-open" class="setting-nav" type="button">
@@ -204,7 +182,7 @@
                 <div class="setting-nav-chev">&gt;</div>
               </button>
               <button id="btn-hotkeys-open" class="setting-nav" type="button">
-                <div class="setting-nav-label">键盘快捷键</div>
+                <div class="setting-nav-label">操作设置</div>
                 <div class="setting-nav-chev">&gt;</div>
               </button>
               <button id="btn-dev-open" class="setting-nav hidden" type="button">
@@ -215,7 +193,7 @@
 
             <div id="settings-page-highlight" class="settings-page hidden">
               <div class="setting-row">
-                <div class="setting-label">突出显示区域</div>
+                <div class="setting-label">突出影响范围</div>
                 <label class="switch">
                   <input id="setting-highlight-region" type="checkbox" />
                   <span class="slider"></span>
@@ -229,21 +207,21 @@
                 </label>
               </div>
               <div class="setting-row">
-                <div class="setting-label">突出相同笔记</div>
+                <div class="setting-label">高亮相同笔记</div>
                 <label class="switch">
                   <input id="setting-highlight-same-notes" type="checkbox" />
                   <span class="slider"></span>
                 </label>
               </div>
               <div id="setting-row-highlight-same-notes-mode" class="setting-row">
-                <div class="setting-label">突出相同笔记：数字</div>
+                <div class="setting-label">高亮相同笔记：数字</div>
                 <label class="switch">
                   <input id="setting-highlight-same-notes-digit" type="checkbox" />
                   <span class="slider"></span>
                 </label>
               </div>
               <div class="setting-row">
-                <div class="setting-label">高亮唯一数</div>
+                <div class="setting-label">突出唯一可选</div>
                 <label class="switch">
                   <input id="setting-highlight-unique" type="checkbox" />
                   <span class="slider"></span>
@@ -255,7 +233,7 @@
               <div class="setting-row">
                 <div class="setting-label">界面亮度</div>
                 <div style="display:flex; align-items:center; gap:10px">
-                  <input id="setting-brightness" type="range" min="70" max="110" step="1" />
+                  <input id="setting-brightness" type="range" min="70" max="120" step="5" />
                   <div id="setting-brightness-value" class="pill">100%</div>
                 </div>
               </div>
@@ -280,51 +258,84 @@
             </div>
 
             <div id="settings-page-hotkeys" class="settings-page hidden">
-              <div class="hotkeys-card">
-                <div class="hotkeys-title">导航</div>
-                <div class="hotkey-row">
-                  <div class="hotkey-keys">
-                    <span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span>
-                    <span class="keycap">↑</span><span class="keycap">↓</span><span class="keycap">←</span><span class="keycap">→</span>
+              <div class="setting-row">
+                <div class="setting-label">双击自动填入</div>
+                <label class="switch">
+                  <input id="setting-double-click-fill-note" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">选数优先</div>
+                <label class="switch">
+                  <input id="setting-number-first" type="checkbox" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <button id="btn-keyboard-shortcuts-open" class="setting-nav" type="button">
+                <div class="setting-nav-label">键盘快捷键</div>
+                <div class="setting-nav-chev">&gt;</div>
+              </button>
+            </div>
+
+            <div id="settings-page-keyboard-shortcuts" class="settings-page hidden">
+              <div id="hotkeys-help">
+                <div class="hotkeys-card">
+                  <div class="hotkeys-title">导航</div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-up" class="keycap" type="button">W</button><button id="btn-bind-up2" class="keycap" type="button">↑</button></div>
+                    <div class="hotkey-desc">移动：上</div>
                   </div>
-                  <div class="hotkey-desc">提示面板/推演抽屉打开时：切换上一步/下一步</div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-down" class="keycap" type="button">S</button><button id="btn-bind-down2" class="keycap" type="button">↓</button></div>
+                    <div class="hotkey-desc">移动：下</div>
+                  </div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-left" class="keycap" type="button">A</button><button id="btn-bind-left2" class="keycap" type="button">←</button></div>
+                    <div class="hotkey-desc">移动：左</div>
+                  </div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-right" class="keycap" type="button">D</button><button id="btn-bind-right2" class="keycap" type="button">→</button></div>
+                    <div class="hotkey-desc">移动：右</div>
+                  </div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-hint-prev" class="keycap" type="button">Q</button></div>
+                    <div class="hotkey-desc">提示：上一步</div>
+                  </div>
                 </div>
-                <div class="hotkey-row">
-                  <div class="hotkey-keys"><span class="keycap">Q</span></div>
-                  <div class="hotkey-desc">提示面板：上一步</div>
-                </div>
-                <div class="hotkey-row">
-                  <div class="hotkey-keys"><span class="keycap">E</span></div>
-                  <div class="hotkey-desc">提示面板：下一步</div>
+
+                <div class="hotkeys-card">
+                  <div class="hotkeys-title">操作</div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-lock" class="keycap" type="button">F</button></div>
+                    <div class="hotkey-desc">锁定数字 / 提示</div>
+                  </div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-hint-next" class="keycap" type="button">E</button></div>
+                    <div class="hotkey-desc">提示：下一步 / 确认</div>
+                  </div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><span class="keycap">Esc</span></div>
+                    <div class="hotkey-desc">返回 / 关闭</div>
+                  </div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-undo" class="keycap" type="button">Z</button></div>
+                    <div class="hotkey-desc">撤回</div>
+                  </div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-erase" class="keycap" type="button">X</button></div>
+                    <div class="hotkey-desc">擦除</div>
+                  </div>
+                  <div class="hotkey-row">
+                    <div class="hotkey-keys"><button id="btn-bind-note" class="keycap" type="button">R</button></div>
+                    <div class="hotkey-desc">笔记模式</div>
+                  </div>
                 </div>
               </div>
 
-              <div class="hotkeys-card">
-                <div class="hotkeys-title">操作</div>
-                <div class="hotkey-row">
-                  <div class="hotkey-keys"><span class="keycap">F</span></div>
-                  <div class="hotkey-desc">提示：打开提示；提示面板打开时继续“下一步/填入”</div>
-                </div>
-                <div class="hotkey-row">
-                  <div class="hotkey-keys"><span class="keycap">E</span></div>
-                  <div class="hotkey-desc">确认 / 取消选中</div>
-                </div>
-                <div class="hotkey-row">
-                  <div class="hotkey-keys"><span class="keycap">Esc</span></div>
-                  <div class="hotkey-desc">返回 / 关闭</div>
-                </div>
-                <div class="hotkey-row">
-                  <div class="hotkey-keys"><span class="keycap">Z</span></div>
-                  <div class="hotkey-desc">撤回</div>
-                </div>
-                <div class="hotkey-row">
-                  <div class="hotkey-keys"><span class="keycap">X</span></div>
-                  <div class="hotkey-desc">擦除</div>
-                </div>
-                <div class="hotkey-row">
-                  <div class="hotkey-keys"><span class="keycap">R</span></div>
-                  <div class="hotkey-desc">笔记模式</div>
-                </div>
+              <div class="hotkey-desc">点击键位后按下新按键，按 Esc 取消</div>
+              <div class="setting-row">
+                <button id="btn-restore-default-keybinds" class="ghost-btn" style="width: 100%; color: var(--bad); border-color: var(--bad);">恢复默认设置</button>
               </div>
             </div>
 
